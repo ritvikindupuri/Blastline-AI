@@ -14,115 +14,253 @@ export type Database = {
   }
   public: {
     Tables: {
-      agent_messages: {
+      agent_transcripts: {
         Row: {
           agent: string
+          audit_id: string
           content: string | null
           created_at: string
           data: Json | null
           id: string
-          role: string
-          run_id: string
+          phase: string | null
           seq: number
           user_id: string
         }
         Insert: {
           agent: string
+          audit_id: string
           content?: string | null
           created_at?: string
           data?: Json | null
           id?: string
-          role?: string
-          run_id: string
+          phase?: string | null
           seq?: number
           user_id: string
         }
         Update: {
           agent?: string
+          audit_id?: string
           content?: string | null
           created_at?: string
           data?: Json | null
           id?: string
-          role?: string
-          run_id?: string
+          phase?: string | null
           seq?: number
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "agent_messages_run_id_fkey"
-            columns: ["run_id"]
+            foreignKeyName: "agent_transcripts_audit_id_fkey"
+            columns: ["audit_id"]
             isOneToOne: false
-            referencedRelation: "war_room_runs"
+            referencedRelation: "audits"
             referencedColumns: ["id"]
           },
         ]
       }
-      connections: {
+      attack_paths: {
         Row: {
-          aws_account_label: string | null
-          aws_region: string | null
+          audit_id: string
+          blast_radius: Json | null
           created_at: string
+          finding_ids: string[]
+          graph: Json
           id: string
-          splunk_realm: string | null
-          updated_at: string
+          narrative: string | null
+          severity: string
+          title: string
           user_id: string
         }
         Insert: {
-          aws_account_label?: string | null
-          aws_region?: string | null
+          audit_id: string
+          blast_radius?: Json | null
           created_at?: string
+          finding_ids?: string[]
+          graph: Json
           id?: string
-          splunk_realm?: string | null
-          updated_at?: string
+          narrative?: string | null
+          severity: string
+          title: string
           user_id: string
         }
         Update: {
-          aws_account_label?: string | null
-          aws_region?: string | null
+          audit_id?: string
+          blast_radius?: Json | null
           created_at?: string
+          finding_ids?: string[]
+          graph?: Json
           id?: string
-          splunk_realm?: string | null
+          narrative?: string | null
+          severity?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attack_paths_audit_id_fkey"
+            columns: ["audit_id"]
+            isOneToOne: false
+            referencedRelation: "audits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audits: {
+        Row: {
+          completed_at: string | null
+          connection_id: string
+          created_at: string
+          error: string | null
+          id: string
+          scope: Json | null
+          started_at: string
+          status: string
+          summary: Json | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          connection_id: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          scope?: Json | null
+          started_at?: string
+          status?: string
+          summary?: Json | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          connection_id?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          scope?: Json | null
+          started_at?: string
+          status?: string
+          summary?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audits_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "aws_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      aws_connections: {
+        Row: {
+          account_label: string
+          aws_account_id: string | null
+          created_at: string
+          default_region: string
+          external_id: string
+          id: string
+          last_verified_at: string | null
+          role_arn: string
+          updated_at: string
+          user_id: string
+          verification_status: string
+        }
+        Insert: {
+          account_label: string
+          aws_account_id?: string | null
+          created_at?: string
+          default_region?: string
+          external_id: string
+          id?: string
+          last_verified_at?: string | null
+          role_arn: string
+          updated_at?: string
+          user_id: string
+          verification_status?: string
+        }
+        Update: {
+          account_label?: string
+          aws_account_id?: string | null
+          created_at?: string
+          default_region?: string
+          external_id?: string
+          id?: string
+          last_verified_at?: string | null
+          role_arn?: string
           updated_at?: string
           user_id?: string
+          verification_status?: string
         }
         Relationships: []
       }
-      incidents: {
+      findings: {
         Row: {
+          audit_id: string
+          check_id: string
+          confidence: number
           created_at: string
-          detector_name: string | null
+          critic_reasoning: string | null
+          critic_verdict: string | null
+          description: string | null
+          evidence: Json | null
+          framework_refs: Json | null
           id: string
-          raw: Json | null
-          severity: string | null
-          splunk_incident_id: string | null
-          status: string | null
-          triggered_at: string | null
+          region: string | null
+          resource_arn: string | null
+          service: string
+          severity: string
+          status: string
+          title: string
           user_id: string
         }
         Insert: {
+          audit_id: string
+          check_id: string
+          confidence?: number
           created_at?: string
-          detector_name?: string | null
+          critic_reasoning?: string | null
+          critic_verdict?: string | null
+          description?: string | null
+          evidence?: Json | null
+          framework_refs?: Json | null
           id?: string
-          raw?: Json | null
-          severity?: string | null
-          splunk_incident_id?: string | null
-          status?: string | null
-          triggered_at?: string | null
+          region?: string | null
+          resource_arn?: string | null
+          service: string
+          severity: string
+          status?: string
+          title: string
           user_id: string
         }
         Update: {
+          audit_id?: string
+          check_id?: string
+          confidence?: number
           created_at?: string
-          detector_name?: string | null
+          critic_reasoning?: string | null
+          critic_verdict?: string | null
+          description?: string | null
+          evidence?: Json | null
+          framework_refs?: Json | null
           id?: string
-          raw?: Json | null
-          severity?: string | null
-          splunk_incident_id?: string | null
-          status?: string | null
-          triggered_at?: string | null
+          region?: string | null
+          resource_arn?: string | null
+          service?: string
+          severity?: string
+          status?: string
+          title?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "findings_audit_id_fkey"
+            columns: ["audit_id"]
+            isOneToOne: false
+            referencedRelation: "audits"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -151,87 +289,52 @@ export type Database = {
         }
         Relationships: []
       }
-      remediation_actions: {
+      remediations: {
         Row: {
-          approved: boolean | null
-          command: string | null
-          command_type: string | null
+          applied: boolean
+          approved: boolean
           created_at: string
           description: string | null
+          finding_id: string
+          fix_type: string
           id: string
-          risk: string | null
-          run_id: string
+          risk: string
+          snippet: string
           title: string
           user_id: string
         }
         Insert: {
-          approved?: boolean | null
-          command?: string | null
-          command_type?: string | null
+          applied?: boolean
+          approved?: boolean
           created_at?: string
           description?: string | null
+          finding_id: string
+          fix_type: string
           id?: string
-          risk?: string | null
-          run_id: string
+          risk?: string
+          snippet: string
           title: string
           user_id: string
         }
         Update: {
-          approved?: boolean | null
-          command?: string | null
-          command_type?: string | null
+          applied?: boolean
+          approved?: boolean
           created_at?: string
           description?: string | null
+          finding_id?: string
+          fix_type?: string
           id?: string
-          risk?: string | null
-          run_id?: string
+          risk?: string
+          snippet?: string
           title?: string
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "remediation_actions_run_id_fkey"
-            columns: ["run_id"]
+            foreignKeyName: "remediations_finding_id_fkey"
+            columns: ["finding_id"]
             isOneToOne: false
-            referencedRelation: "war_room_runs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      war_room_runs: {
-        Row: {
-          completed_at: string | null
-          final_report: Json | null
-          id: string
-          incident_id: string | null
-          started_at: string
-          status: string
-          user_id: string
-        }
-        Insert: {
-          completed_at?: string | null
-          final_report?: Json | null
-          id?: string
-          incident_id?: string | null
-          started_at?: string
-          status?: string
-          user_id: string
-        }
-        Update: {
-          completed_at?: string | null
-          final_report?: Json | null
-          id?: string
-          incident_id?: string | null
-          started_at?: string
-          status?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "war_room_runs_incident_id_fkey"
-            columns: ["incident_id"]
-            isOneToOne: false
-            referencedRelation: "incidents"
+            referencedRelation: "findings"
             referencedColumns: ["id"]
           },
         ]
