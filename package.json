@@ -13,6 +13,15 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudtrail": "^3.1034.0",
+    "@aws-sdk/client-cloudwatch": "^3.1034.0",
+    "@aws-sdk/client-ec2": "^3.1034.0",
+    "@aws-sdk/client-guardduty": "^3.1034.0",
+    "@aws-sdk/client-iam": "^3.1034.0",
+    "@aws-sdk/client-lambda": "^3.1034.0",
+    "@aws-sdk/client-rds": "^3.1034.0",
+    "@aws-sdk/client-s3": "^3.1034.0",
+    "@aws-sdk/client-sts": "^3.1034.0",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -57,6 +66,7 @@
     "react-hook-form": "^7.61.1",
     "react-resizable-panels": "^2.1.9",
     "react-router-dom": "^6.30.1",
+    "reactflow": "^11.11.4",
     "recharts": "^2.15.4",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",

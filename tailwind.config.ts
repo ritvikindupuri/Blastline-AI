@@ -22,6 +22,7 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          glow: "hsl(var(--primary-glow))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -30,6 +31,16 @@ export default {
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
+        },
+        success: { DEFAULT: "hsl(var(--success))", foreground: "hsl(var(--success-foreground))" },
+        warning: { DEFAULT: "hsl(var(--warning))", foreground: "hsl(var(--warning-foreground))" },
+        critical: { DEFAULT: "hsl(var(--critical))", foreground: "hsl(var(--critical-foreground))" },
+        sev: {
+          critical: "hsl(var(--critical))",
+          high: "hsl(var(--high))",
+          medium: "hsl(var(--medium))",
+          low: "hsl(var(--low))",
+          info: "hsl(var(--info))",
         },
         muted: {
           DEFAULT: "hsl(var(--muted))",
@@ -62,6 +73,20 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      fontFamily: {
+        display: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+      },
+      backgroundImage: {
+        'gradient-neon': 'var(--gradient-neon)',
+        'gradient-amber': 'var(--gradient-amber)',
+        'gradient-grid': 'var(--gradient-grid)',
+      },
+      boxShadow: {
+        glow: 'var(--shadow-glow)',
+        card: 'var(--shadow-card)',
       },
       keyframes: {
         "accordion-down": {
