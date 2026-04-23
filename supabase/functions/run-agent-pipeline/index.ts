@@ -199,10 +199,14 @@ async function runPipeline(audit_id: string, user_id: string) {
   const services: string[] = audit?.scope?.services ?? [];
   const region = conn.default_region;
 
-  await log(audit_id, user_id, "recon", `Booting recon agent · target ${conn.aws_account_id} · region ${region}`, "init");
+  await log(audit_id, user_id, "recon", `Booting recon agent · target ${conn.aws_account_id ?? "(pending)"} · region ${region}`, "init");
 
-  const creds = await assumeRole(conn.role_arn, conn.external_id, `sentrygrid-${audit_id.slice(0, 8)}`, region);
-  await log(audit_id, user_id, "recon", `STS AssumeRole succeeded · session credentials acquired (1h TTL)`, "auth");
+  if (!conn.access_key_id || !conn.secret_access_key) {
+    throw new Error("Connection has no access keys configured");
+  }
+  const creds: Creds = { ak: conn.access_key_id, sk: conn.secret_access_key };
+  const ident = await getCallerIdentity(creds, region);
+  await log(audit_id, user_id, "recon", `Authenticated as ${ident.arn ?? "unknown"} · account ${ident.account ?? "?"}`, "auth");
 
   const findings: any[] = [];
 
