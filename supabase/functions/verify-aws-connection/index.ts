@@ -5,9 +5,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const BOOT_AK = Deno.env.get("AWS_BOOTSTRAP_ACCESS_KEY_ID")!;
-const BOOT_SK = Deno.env.get("AWS_BOOTSTRAP_SECRET_ACCESS_KEY")!;
-
 const enc = new TextEncoder();
 async function hmac(key: ArrayBuffer | Uint8Array, data: string): Promise<ArrayBuffer> {
   const k = await crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -79,15 +76,11 @@ Deno.serve(async (req) => {
     if (!conn) return json({ error: "connection not found" }, 404);
 
     try {
-      // 1) AssumeRole
-      const assumeBody = `Action=AssumeRole&Version=2011-06-15&RoleArn=${encodeURIComponent(conn.role_arn)}&RoleSessionName=sentrygrid-verify-${Date.now()}&ExternalId=${encodeURIComponent(conn.external_id)}&DurationSeconds=900`;
-      const assumed = await stsCall(assumeBody, BOOT_AK, BOOT_SK);
-      const ak = xmlOne(assumed, "AccessKeyId")!;
-      const sk = xmlOne(assumed, "SecretAccessKey")!;
-      const st = xmlOne(assumed, "SessionToken")!;
-
-      // 2) GetCallerIdentity with assumed creds
-      const idXml = await stsCall("Action=GetCallerIdentity&Version=2011-06-15", ak, sk, st);
+      if (!conn.access_key_id || !conn.secret_access_key) {
+        return json({ ok: false, error: "Connection has no access keys configured" });
+      }
+      // GetCallerIdentity with the user's stored access keys
+      const idXml = await stsCall("Action=GetCallerIdentity&Version=2011-06-15", conn.access_key_id, conn.secret_access_key);
       const account = xmlOne(idXml, "Account");
       const arn = xmlOne(idXml, "Arn");
 

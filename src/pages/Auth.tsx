@@ -1,15 +1,19 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Shield, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import logo from "@/assets/vaultline-logo.png";
 
 export default function Auth() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [params] = useSearchParams();
+  const [mode, setMode] = useState<"signin" | "signup">(
+    params.get("mode") === "signup" ? "signup" : "signin"
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -44,8 +48,8 @@ export default function Auth() {
       <div className="absolute inset-0 grid-bg opacity-20" />
       <div className="relative z-10 w-full max-w-md">
         <Link to="/" className="flex items-center justify-center gap-2 mb-8">
-          <Shield className="h-6 w-6 text-primary" />
-          <span className="font-display font-semibold text-lg">Sentry<span className="text-primary">Grid</span></span>
+          <img src={logo} alt="Vaultline" width={28} height={28} className="h-7 w-7" />
+          <span className="font-display font-semibold text-lg">Vault<span className="text-primary">line</span></span>
         </Link>
         <div className="rounded-xl border border-border bg-card/70 backdrop-blur p-6 shadow-card">
           <div className="text-xs font-mono text-muted-foreground">// {mode === "signin" ? "authenticate" : "provision operator"}</div>

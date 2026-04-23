@@ -1,14 +1,15 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Shield, Activity, Network, GitBranch, ScanSearch, Bot, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Activity, Network, GitBranch, ScanSearch, Bot, ArrowRight, CheckCircle2, ShieldCheck } from "lucide-react";
+import logo from "@/assets/vaultline-logo.png";
 
 const agents = [
   { icon: ScanSearch, name: "Recon", desc: "Enumerates IAM, S3, EC2, Lambda, RDS, CloudTrail and GuardDuty across regions." },
-  { icon: Shield, name: "Misconfig", desc: "Runs CIS AWS Foundations + NIST 800-53 checks against the recon graph." },
+  { icon: ShieldCheck, name: "Misconfig", desc: "Runs CIS AWS Foundations + NIST 800-53 checks against the recon graph." },
   { icon: Network, name: "AttackPath", desc: "Chains findings into realistic privilege-escalation paths." },
   { icon: Activity, name: "BlastRadius", desc: "Quantifies blast radius — resources, data classes, business tier." },
   { icon: GitBranch, name: "Remediation", desc: "Emits Terraform + AWS CLI fixes per finding." },
-  { icon: Bot, name: "Critic", desc: "GPT-5 challenges every finding to kill false positives." },
+  { icon: Bot, name: "Critic", desc: "An adversarial agent challenges every finding to kill false positives." },
 ];
 
 export default function Landing() {
@@ -19,27 +20,30 @@ export default function Landing() {
 
       <header className="relative z-10 flex items-center justify-between px-8 h-16 border-b border-border/60 backdrop-blur-xl">
         <div className="flex items-center gap-2">
-          <Shield className="h-5 w-5 text-primary" />
-          <span className="font-display font-semibold">SentryGrid</span>
+          <img src={logo} alt="Vaultline" width={24} height={24} className="h-6 w-6" />
+          <span className="font-display font-semibold tracking-tight">Vaultline</span>
         </div>
-        <Link to="/auth"><Button variant="outline" size="sm">Sign in</Button></Link>
+        <div className="flex items-center gap-2">
+          <Link to="/auth?mode=signin"><Button variant="ghost" size="sm">Sign in</Button></Link>
+          <Link to="/auth?mode=signup"><Button size="sm" className="shadow-glow">Sign up</Button></Link>
+        </div>
       </header>
 
       <section className="relative z-10 max-w-5xl mx-auto px-6 pt-24 pb-16 text-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs font-mono text-muted-foreground mb-6">
           <span className="h-1.5 w-1.5 rounded-full bg-success pulse-ring" />
-          7-agent orchestration · Lovable AI Gateway
+          6-agent orchestration · live AWS introspection
         </div>
         <h1 className="font-display text-6xl md:text-7xl font-bold leading-[1.02] tracking-tight">
           Your AWS account, <br />
           <span className="text-primary text-glow">interrogated by AI.</span>
         </h1>
         <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
-          SentryGrid runs a fleet of specialized agents across your AWS environment to uncover
+          Vaultline runs a fleet of specialized agents across your AWS environment to uncover
           misconfigurations, chain them into attack paths, score blast radius, and ship Terraform fixes — in minutes.
         </p>
         <div className="mt-10 flex items-center justify-center gap-3">
-          <Link to="/auth"><Button size="lg" className="gap-2 shadow-glow">Start an audit <ArrowRight className="h-4 w-4" /></Button></Link>
+          <Link to="/auth?mode=signup"><Button size="lg" className="gap-2 shadow-glow">Start an audit <ArrowRight className="h-4 w-4" /></Button></Link>
           <a href="#agents"><Button size="lg" variant="outline">See the agents</Button></a>
         </div>
         <div className="mt-8 flex items-center justify-center gap-6 text-xs text-muted-foreground font-mono">
@@ -70,7 +74,7 @@ export default function Landing() {
       </section>
 
       <footer className="relative z-10 border-t border-border/60 py-8 text-center text-xs text-muted-foreground font-mono">
-        SentryGrid · defensive security · powered by Lovable AI
+        Vaultline · defensive security operations · {new Date().getFullYear()}
       </footer>
     </div>
   );

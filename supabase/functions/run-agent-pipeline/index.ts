@@ -8,8 +8,6 @@ const corsHeaders = {
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const BOOT_AK = Deno.env.get("AWS_BOOTSTRAP_ACCESS_KEY_ID")!;
-const BOOT_SK = Deno.env.get("AWS_BOOTSTRAP_SECRET_ACCESS_KEY")!;
 const admin = createClient(SUPABASE_URL, SERVICE);
 
 let _seq = 0;
@@ -112,19 +110,14 @@ function xmlOne(xml: string, tag: string): string | null {
 // ============================================================
 // AWS API wrappers
 // ============================================================
-async function assumeRole(roleArn: string, externalId: string, sessionName: string, region: string): Promise<Creds> {
-  const body = `Action=AssumeRole&Version=2011-06-15&RoleArn=${encodeURIComponent(roleArn)}&RoleSessionName=${encodeURIComponent(sessionName)}&ExternalId=${encodeURIComponent(externalId)}&DurationSeconds=3600`;
+async function getCallerIdentity(creds: Creds, region: string): Promise<{ account: string | null; arn: string | null }> {
   const r = await awsRequest({
     service: "sts", region, host: "sts.amazonaws.com",
-    body, creds: { ak: BOOT_AK, sk: BOOT_SK },
+    body: "Action=GetCallerIdentity&Version=2011-06-15", creds,
   });
   const text = await r.text();
-  if (!r.ok) throw new Error(`AssumeRole failed: ${text}`);
-  return {
-    ak: xmlOne(text, "AccessKeyId")!,
-    sk: xmlOne(text, "SecretAccessKey")!,
-    st: xmlOne(text, "SessionToken")!,
-  };
+  if (!r.ok) throw new Error(`GetCallerIdentity failed: ${text}`);
+  return { account: xmlOne(text, "Account"), arn: xmlOne(text, "Arn") };
 }
 
 async function ec2Call(action: string, region: string, creds: Creds, params: Record<string, string> = {}): Promise<string> {
@@ -206,10 +199,14 @@ async function runPipeline(audit_id: string, user_id: string) {
   const services: string[] = audit?.scope?.services ?? [];
   const region = conn.default_region;
 
-  await log(audit_id, user_id, "recon", `Booting recon agent · target ${conn.aws_account_id} · region ${region}`, "init");
+  await log(audit_id, user_id, "recon", `Booting recon agent · target ${conn.aws_account_id ?? "(pending)"} · region ${region}`, "init");
 
-  const creds = await assumeRole(conn.role_arn, conn.external_id, `sentrygrid-${audit_id.slice(0, 8)}`, region);
-  await log(audit_id, user_id, "recon", `STS AssumeRole succeeded · session credentials acquired (1h TTL)`, "auth");
+  if (!conn.access_key_id || !conn.secret_access_key) {
+    throw new Error("Connection has no access keys configured");
+  }
+  const creds: Creds = { ak: conn.access_key_id, sk: conn.secret_access_key };
+  const ident = await getCallerIdentity(creds, region);
+  await log(audit_id, user_id, "recon", `Authenticated as ${ident.arn ?? "unknown"} · account ${ident.account ?? "?"}`, "auth");
 
   const findings: any[] = [];
 

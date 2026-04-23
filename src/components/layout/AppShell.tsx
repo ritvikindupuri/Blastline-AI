@@ -1,8 +1,9 @@
 import { ReactNode } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
-import { Shield, LayoutDashboard, Plug, Activity, FileSearch, LogOut, Network } from "lucide-react";
+import { LayoutDashboard, Plug, Activity, FileSearch, LogOut, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import logo from "@/assets/vaultline-logo.png";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();
@@ -21,11 +22,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="w-60 border-r border-border bg-sidebar/80 backdrop-blur-xl flex flex-col">
         <Link to="/dashboard" className="flex items-center gap-2 px-5 h-16 border-b border-sidebar-border">
           <div className="relative">
-            <Shield className="h-6 w-6 text-primary" />
-            <span className="absolute -inset-1 rounded-full bg-primary/20 blur-md" />
+            <img src={logo} alt="Vaultline" width={24} height={24} className="h-6 w-6" />
+            <span className="absolute -inset-1 rounded-full bg-primary/20 blur-md -z-10" />
           </div>
           <div className="font-display font-semibold tracking-tight text-foreground">
-            Sentry<span className="text-primary">Grid</span>
+            Vault<span className="text-primary">line</span>
           </div>
         </Link>
         <nav className="flex-1 p-3 space-y-1">
