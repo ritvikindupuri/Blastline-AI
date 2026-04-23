@@ -154,40 +154,46 @@ export type Database = {
       }
       aws_connections: {
         Row: {
+          access_key_id: string | null
           account_label: string
           aws_account_id: string | null
           created_at: string
           default_region: string
-          external_id: string
+          external_id: string | null
           id: string
           last_verified_at: string | null
-          role_arn: string
+          role_arn: string | null
+          secret_access_key: string | null
           updated_at: string
           user_id: string
           verification_status: string
         }
         Insert: {
+          access_key_id?: string | null
           account_label: string
           aws_account_id?: string | null
           created_at?: string
           default_region?: string
-          external_id: string
+          external_id?: string | null
           id?: string
           last_verified_at?: string | null
-          role_arn: string
+          role_arn?: string | null
+          secret_access_key?: string | null
           updated_at?: string
           user_id: string
           verification_status?: string
         }
         Update: {
+          access_key_id?: string | null
           account_label?: string
           aws_account_id?: string | null
           created_at?: string
           default_region?: string
-          external_id?: string
+          external_id?: string | null
           id?: string
           last_verified_at?: string | null
-          role_arn?: string
+          role_arn?: string | null
+          secret_access_key?: string | null
           updated_at?: string
           user_id?: string
           verification_status?: string
