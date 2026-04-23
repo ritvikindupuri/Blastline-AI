@@ -8,8 +8,6 @@ const corsHeaders = {
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const BOOT_AK = Deno.env.get("AWS_BOOTSTRAP_ACCESS_KEY_ID")!;
-const BOOT_SK = Deno.env.get("AWS_BOOTSTRAP_SECRET_ACCESS_KEY")!;
 const admin = createClient(SUPABASE_URL, SERVICE);
 
 let _seq = 0;
@@ -112,19 +110,14 @@ function xmlOne(xml: string, tag: string): string | null {
 // ============================================================
 // AWS API wrappers
 // ============================================================
-async function assumeRole(roleArn: string, externalId: string, sessionName: string, region: string): Promise<Creds> {
-  const body = `Action=AssumeRole&Version=2011-06-15&RoleArn=${encodeURIComponent(roleArn)}&RoleSessionName=${encodeURIComponent(sessionName)}&ExternalId=${encodeURIComponent(externalId)}&DurationSeconds=3600`;
+async function getCallerIdentity(creds: Creds, region: string): Promise<{ account: string | null; arn: string | null }> {
   const r = await awsRequest({
     service: "sts", region, host: "sts.amazonaws.com",
-    body, creds: { ak: BOOT_AK, sk: BOOT_SK },
+    body: "Action=GetCallerIdentity&Version=2011-06-15", creds,
   });
   const text = await r.text();
-  if (!r.ok) throw new Error(`AssumeRole failed: ${text}`);
-  return {
-    ak: xmlOne(text, "AccessKeyId")!,
-    sk: xmlOne(text, "SecretAccessKey")!,
-    st: xmlOne(text, "SessionToken")!,
-  };
+  if (!r.ok) throw new Error(`GetCallerIdentity failed: ${text}`);
+  return { account: xmlOne(text, "Account"), arn: xmlOne(text, "Arn") };
 }
 
 async function ec2Call(action: string, region: string, creds: Creds, params: Record<string, string> = {}): Promise<string> {
