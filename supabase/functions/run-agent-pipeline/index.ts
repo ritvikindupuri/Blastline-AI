@@ -1,12 +1,12 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { STSClient, AssumeRoleCommand } from "https://esm.sh/@aws-sdk/client-sts@3.658.1";
-import { IAMClient, ListUsersCommand, ListRolesCommand, ListAccessKeysCommand, GetAccountPasswordPolicyCommand, ListAttachedRolePoliciesCommand } from "https://esm.sh/@aws-sdk/client-iam@3.658.1";
-import { S3Client, ListBucketsCommand, GetBucketPolicyStatusCommand, GetBucketEncryptionCommand, GetPublicAccessBlockCommand } from "https://esm.sh/@aws-sdk/client-s3@3.658.1";
-import { EC2Client, DescribeSecurityGroupsCommand, DescribeVolumesCommand, DescribeInstancesCommand } from "https://esm.sh/@aws-sdk/client-ec2@3.658.1";
-import { RDSClient, DescribeDBInstancesCommand } from "https://esm.sh/@aws-sdk/client-rds@3.658.1";
-import { LambdaClient, ListFunctionsCommand, GetFunctionUrlConfigCommand } from "https://esm.sh/@aws-sdk/client-lambda@3.658.1";
-import { CloudTrailClient, DescribeTrailsCommand, GetTrailStatusCommand } from "https://esm.sh/@aws-sdk/client-cloudtrail@3.658.1";
-import { GuardDutyClient, ListDetectorsCommand } from "https://esm.sh/@aws-sdk/client-guardduty@3.658.1";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { STSClient, AssumeRoleCommand } from "npm:@aws-sdk/client-sts@3.658.1";
+import { IAMClient, ListUsersCommand, ListRolesCommand, ListAccessKeysCommand, GetAccountPasswordPolicyCommand, ListAttachedRolePoliciesCommand } from "npm:@aws-sdk/client-iam@3.658.1";
+import { S3Client, ListBucketsCommand, GetBucketPolicyStatusCommand, GetBucketEncryptionCommand, GetPublicAccessBlockCommand } from "npm:@aws-sdk/client-s3@3.658.1";
+import { EC2Client, DescribeSecurityGroupsCommand, DescribeVolumesCommand, DescribeInstancesCommand } from "npm:@aws-sdk/client-ec2@3.658.1";
+import { RDSClient, DescribeDBInstancesCommand } from "npm:@aws-sdk/client-rds@3.658.1";
+import { LambdaClient, ListFunctionsCommand, GetFunctionUrlConfigCommand } from "npm:@aws-sdk/client-lambda@3.658.1";
+import { CloudTrailClient, DescribeTrailsCommand, GetTrailStatusCommand } from "npm:@aws-sdk/client-cloudtrail@3.658.1";
+import { GuardDutyClient, ListDetectorsCommand } from "npm:@aws-sdk/client-guardduty@3.658.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
