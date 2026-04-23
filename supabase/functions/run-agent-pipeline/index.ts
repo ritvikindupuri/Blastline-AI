@@ -1,12 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { STSClient, AssumeRoleCommand } from "https://esm.sh/@aws-sdk/client-sts@3.658.1";
-import { IAMClient, ListUsersCommand, ListRolesCommand, ListAccessKeysCommand, GetAccountPasswordPolicyCommand, ListAttachedRolePoliciesCommand } from "https://esm.sh/@aws-sdk/client-iam@3.658.1";
-import { S3Client, ListBucketsCommand, GetBucketPolicyStatusCommand, GetBucketEncryptionCommand, GetPublicAccessBlockCommand } from "https://esm.sh/@aws-sdk/client-s3@3.658.1";
-import { EC2Client, DescribeSecurityGroupsCommand, DescribeVolumesCommand, DescribeInstancesCommand } from "https://esm.sh/@aws-sdk/client-ec2@3.658.1";
-import { RDSClient, DescribeDBInstancesCommand } from "https://esm.sh/@aws-sdk/client-rds@3.658.1";
-import { LambdaClient, ListFunctionsCommand, GetFunctionUrlConfigCommand } from "https://esm.sh/@aws-sdk/client-lambda@3.658.1";
-import { CloudTrailClient, DescribeTrailsCommand, GetTrailStatusCommand } from "https://esm.sh/@aws-sdk/client-cloudtrail@3.658.1";
-import { GuardDutyClient, ListDetectorsCommand } from "https://esm.sh/@aws-sdk/client-guardduty@3.658.1";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,6 +8,8 @@ const corsHeaders = {
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const BOOT_AK = Deno.env.get("AWS_BOOTSTRAP_ACCESS_KEY_ID")!;
+const BOOT_SK = Deno.env.get("AWS_BOOTSTRAP_SECRET_ACCESS_KEY")!;
 const admin = createClient(SUPABASE_URL, SERVICE);
 
 let _seq = 0;
@@ -24,7 +18,6 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const { audit_id, user_id } = await req.json();
-    // run async — but we'll await for clean error handling here since we already returned early in start-audit
     runPipeline(audit_id, user_id).catch(async (e) => {
       console.error("pipeline error", e);
       await admin.from("audits").update({ status: "failed", error: String(e?.message ?? e), completed_at: new Date().toISOString() }).eq("id", audit_id);
@@ -35,8 +28,174 @@ Deno.serve(async (req) => {
   }
 });
 
+// ============================================================
+// Tiny SigV4 helper — replaces 8 AWS SDK packages (~30MB bundle)
+// ============================================================
+type Creds = { ak: string; sk: string; st?: string };
+const enc = new TextEncoder();
+
+async function hmac(key: ArrayBuffer | Uint8Array, data: string): Promise<ArrayBuffer> {
+  const k = await crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return crypto.subtle.sign("HMAC", k, enc.encode(data));
+}
+async function sha256Hex(data: string): Promise<string> {
+  const h = await crypto.subtle.digest("SHA-256", enc.encode(data));
+  return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function hex(buf: ArrayBuffer): string {
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function awsRequest(opts: {
+  service: string; region: string; host?: string; method?: string;
+  path?: string; query?: Record<string, string>; body?: string;
+  headers?: Record<string, string>; creds: Creds;
+}): Promise<Response> {
+  const method = opts.method ?? "POST";
+  const service = opts.service;
+  const region = opts.region;
+  const host = opts.host ?? `${service}.${region}.amazonaws.com`;
+  const path = opts.path ?? "/";
+  const body = opts.body ?? "";
+  const queryStr = opts.query
+    ? Object.keys(opts.query).sort().map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(opts.query![k])}`).join("&")
+    : "";
+
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const dateStamp = amzDate.slice(0, 8);
+
+  const baseHeaders: Record<string, string> = {
+    host,
+    "x-amz-date": amzDate,
+    ...(opts.creds.st ? { "x-amz-security-token": opts.creds.st } : {}),
+    ...(opts.headers ?? {}),
+  };
+  if (method !== "GET" && !baseHeaders["content-type"]) {
+    baseHeaders["content-type"] = "application/x-www-form-urlencoded; charset=utf-8";
+  }
+
+  const sortedHeaderKeys = Object.keys(baseHeaders).map((k) => k.toLowerCase()).sort();
+  const canonicalHeaders = sortedHeaderKeys.map((k) => `${k}:${baseHeaders[Object.keys(baseHeaders).find((h) => h.toLowerCase() === k)!].trim()}`).join("\n") + "\n";
+  const signedHeaders = sortedHeaderKeys.join(";");
+  const payloadHash = await sha256Hex(body);
+
+  const canonicalRequest = [method, path, queryStr, canonicalHeaders, signedHeaders, payloadHash].join("\n");
+  const credScope = `${dateStamp}/${region}/${service}/aws4_request`;
+  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, credScope, await sha256Hex(canonicalRequest)].join("\n");
+
+  const kDate = await hmac(enc.encode("AWS4" + opts.creds.sk), dateStamp);
+  const kRegion = await hmac(kDate, region);
+  const kService = await hmac(kRegion, service);
+  const kSigning = await hmac(kService, "aws4_request");
+  const signature = hex(await hmac(kSigning, stringToSign));
+
+  baseHeaders["authorization"] = `AWS4-HMAC-SHA256 Credential=${opts.creds.ak}/${credScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+  const url = `https://${host}${path}${queryStr ? "?" + queryStr : ""}`;
+  return fetch(url, { method, headers: baseHeaders, body: method === "GET" ? undefined : body });
+}
+
+// Parse XML response → extract repeated element text
+function xmlAll(xml: string, tag: string): string[] {
+  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "g");
+  const out: string[] = [];
+  let m;
+  while ((m = re.exec(xml))) out.push(m[1]);
+  return out;
+}
+function xmlOne(xml: string, tag: string): string | null {
+  const m = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`));
+  return m ? m[1] : null;
+}
+
+// ============================================================
+// AWS API wrappers
+// ============================================================
+async function assumeRole(roleArn: string, externalId: string, sessionName: string, region: string): Promise<Creds> {
+  const body = `Action=AssumeRole&Version=2011-06-15&RoleArn=${encodeURIComponent(roleArn)}&RoleSessionName=${encodeURIComponent(sessionName)}&ExternalId=${encodeURIComponent(externalId)}&DurationSeconds=3600`;
+  const r = await awsRequest({
+    service: "sts", region, host: "sts.amazonaws.com",
+    body, creds: { ak: BOOT_AK, sk: BOOT_SK },
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error(`AssumeRole failed: ${text}`);
+  return {
+    ak: xmlOne(text, "AccessKeyId")!,
+    sk: xmlOne(text, "SecretAccessKey")!,
+    st: xmlOne(text, "SessionToken")!,
+  };
+}
+
+async function ec2Call(action: string, region: string, creds: Creds, params: Record<string, string> = {}): Promise<string> {
+  const body = new URLSearchParams({ Action: action, Version: "2016-11-15", ...params }).toString();
+  const r = await awsRequest({ service: "ec2", region, body, creds });
+  return r.text();
+}
+async function rdsCall(action: string, region: string, creds: Creds): Promise<string> {
+  const body = new URLSearchParams({ Action: action, Version: "2014-10-31" }).toString();
+  const r = await awsRequest({ service: "rds", region, body, creds });
+  return r.text();
+}
+async function iamCall(action: string, creds: Creds, params: Record<string, string> = {}): Promise<string> {
+  // IAM is global → us-east-1
+  const body = new URLSearchParams({ Action: action, Version: "2010-05-08", ...params }).toString();
+  const r = await awsRequest({ service: "iam", region: "us-east-1", host: "iam.amazonaws.com", body, creds });
+  return r.text();
+}
+async function s3List(creds: Creds): Promise<string[]> {
+  const r = await awsRequest({ service: "s3", region: "us-east-1", host: "s3.amazonaws.com", method: "GET", creds });
+  const text = await r.text();
+  return xmlAll(text, "Name");
+}
+async function s3BucketGet(bucket: string, region: string, subresource: string, creds: Creds): Promise<{ ok: boolean; text: string }> {
+  const host = `${bucket}.s3.${region}.amazonaws.com`;
+  const r = await awsRequest({ service: "s3", region, host, method: "GET", path: `/?${subresource}`, creds });
+  return { ok: r.ok, text: await r.text() };
+}
+async function lambdaCall(path: string, region: string, creds: Creds): Promise<{ ok: boolean; json: any }> {
+  const r = await awsRequest({ service: "lambda", region, method: "GET", path, creds });
+  const text = await r.text();
+  try { return { ok: r.ok, json: JSON.parse(text) }; } catch { return { ok: r.ok, json: text }; }
+}
+async function gdCall(region: string, creds: Creds): Promise<any> {
+  const r = await awsRequest({ service: "guardduty", region, method: "GET", path: "/detector", creds });
+  return r.json().catch(() => ({}));
+}
+async function ctCall(action: "DescribeTrails" | "GetTrailStatus", region: string, creds: Creds, name?: string): Promise<any> {
+  const body = JSON.stringify(name ? { Name: name } : {});
+  const r = await awsRequest({
+    service: "cloudtrail", region, body, creds,
+    headers: { "content-type": "application/x-amz-json-1.1", "x-amz-target": `com.amazonaws.cloudtrail.v20131101.CloudTrail_20131101.${action}` },
+  });
+  return r.json().catch(() => ({}));
+}
+
+// ============================================================
 async function log(audit_id: string, user_id: string, agent: string, content: string, phase?: string, data?: any) {
   await admin.from("agent_transcripts").insert({ audit_id, user_id, agent, content, phase, data: data ?? null, seq: ++_seq });
+}
+
+function mkFinding(audit_id: string, user_id: string, service: string, check_id: string, severity: string,
+  title: string, description: string, resource_arn: string | null | undefined, region: string, extra: any) {
+  return {
+    audit_id, user_id, service, check_id, severity, title, description,
+    resource_arn: resource_arn ?? null, region,
+    framework_refs: extra.framework_refs ?? null,
+    evidence: extra.evidence ?? null,
+    confidence: 0.9,
+  };
+}
+
+async function llm(model: string, messages: any[], json = false): Promise<string> {
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model, messages, ...(json ? { response_format: { type: "json_object" } } : {}) }),
+  });
+  if (!res.ok) throw new Error(`AI gateway ${res.status}: ${await res.text()}`);
+  const j = await res.json();
+  return j.choices?.[0]?.message?.content ?? "{}";
 }
 
 async function runPipeline(audit_id: string, user_id: string) {
@@ -45,212 +204,222 @@ async function runPipeline(audit_id: string, user_id: string) {
   const { data: audit } = await admin.from("audits").select("*, aws_connections(*)").eq("id", audit_id).single();
   const conn = (audit as any).aws_connections;
   const services: string[] = audit?.scope?.services ?? [];
-
-  await log(audit_id, user_id, "recon", `Booting recon agent · target ${conn.aws_account_id} · region ${conn.default_region}`, "init");
-
-  // Assume role
-  const sts = new STSClient({
-    region: conn.default_region,
-    credentials: {
-      accessKeyId: Deno.env.get("AWS_BOOTSTRAP_ACCESS_KEY_ID")!,
-      secretAccessKey: Deno.env.get("AWS_BOOTSTRAP_SECRET_ACCESS_KEY")!,
-    },
-  });
-  const assumed = await sts.send(new AssumeRoleCommand({
-    RoleArn: conn.role_arn,
-    RoleSessionName: `sentrygrid-audit-${audit_id.slice(0, 8)}`,
-    ExternalId: conn.external_id,
-    DurationSeconds: 3600,
-  }));
-  const c = assumed.Credentials!;
-  const creds = { accessKeyId: c.AccessKeyId!, secretAccessKey: c.SecretAccessKey!, sessionToken: c.SessionToken! };
   const region = conn.default_region;
 
+  await log(audit_id, user_id, "recon", `Booting recon agent · target ${conn.aws_account_id} · region ${region}`, "init");
+
+  const creds = await assumeRole(conn.role_arn, conn.external_id, `sentrygrid-${audit_id.slice(0, 8)}`, region);
   await log(audit_id, user_id, "recon", `STS AssumeRole succeeded · session credentials acquired (1h TTL)`, "auth");
 
-  // ===== Recon =====
-  const recon: any = {};
   const findings: any[] = [];
 
+  // ===== IAM =====
   if (services.includes("iam")) {
     await log(audit_id, user_id, "recon", "→ enumerating IAM (users, roles, password policy)", "iam");
-    const iam = new IAMClient({ region, credentials: creds });
-    const users = (await iam.send(new ListUsersCommand({}))).Users ?? [];
-    const roles = (await iam.send(new ListRolesCommand({}))).Roles ?? [];
-    let pwdPolicy: any = null;
-    try { pwdPolicy = (await iam.send(new GetAccountPasswordPolicyCommand({}))).PasswordPolicy; } catch { /* none */ }
-    recon.iam = { users, roles, pwdPolicy };
-    await log(audit_id, user_id, "recon", `IAM: ${users.length} users · ${roles.length} roles · password policy: ${pwdPolicy ? "present" : "MISSING"}`, "iam");
+    const usersXml = await iamCall("ListUsers", creds);
+    const rolesXml = await iamCall("ListRoles", creds);
+    const userNames = xmlAll(usersXml, "UserName");
+    const roleBlocks = xmlAll(rolesXml, "member");
+    let pwdPresent = true;
+    try {
+      const pp = await iamCall("GetAccountPasswordPolicy", creds);
+      if (/<Error>|NoSuchEntity/.test(pp)) pwdPresent = false;
+    } catch { pwdPresent = false; }
+    await log(audit_id, user_id, "recon", `IAM: ${userNames.length} users · ${roleBlocks.length} roles · password policy: ${pwdPresent ? "present" : "MISSING"}`, "iam");
 
-    // Misconfig: no password policy
-    if (!pwdPolicy) {
+    if (!pwdPresent) {
       findings.push(mkFinding(audit_id, user_id, "iam", "IAM-PWD-001", "high", "No IAM account password policy configured",
         "AWS account has no password complexity policy. Enables weak passwords across all IAM users.",
         `arn:aws:iam::${conn.aws_account_id}:account`, region,
         { framework_refs: { cis: "1.5-1.11", nist: "IA-5" }, evidence: { passwordPolicy: null } }));
     }
 
-    // Users with access keys + no MFA-ish heuristic
-    for (const u of users.slice(0, 25)) {
+    for (const u of userNames.slice(0, 25)) {
       try {
-        const keys = (await iam.send(new ListAccessKeysCommand({ UserName: u.UserName }))).AccessKeyMetadata ?? [];
-        const oldKeys = keys.filter((k) => k.CreateDate && (Date.now() - new Date(k.CreateDate).getTime()) > 90 * 24 * 3600 * 1000);
-        if (oldKeys.length) {
+        const keysXml = await iamCall("ListAccessKeys", creds, { UserName: u });
+        const dates = xmlAll(keysXml, "CreateDate").map((d) => new Date(d).getTime());
+        const ids = xmlAll(keysXml, "AccessKeyId");
+        const old = dates.filter((d) => Date.now() - d > 90 * 86400000);
+        if (old.length) {
           findings.push(mkFinding(audit_id, user_id, "iam", "IAM-KEY-AGE", "medium",
-            `IAM user ${u.UserName} has access key older than 90 days`,
+            `IAM user ${u} has access key older than 90 days`,
             "Long-lived access keys increase breach blast radius. Rotate or migrate to roles.",
-            u.Arn, region, { framework_refs: { cis: "1.14" }, evidence: { keys: oldKeys.map((k) => ({ id: k.AccessKeyId, created: k.CreateDate })) } }));
+            `arn:aws:iam::${conn.aws_account_id}:user/${u}`, region,
+            { framework_refs: { cis: "1.14" }, evidence: { keyIds: ids } }));
         }
       } catch { /* skip */ }
     }
 
-    // Wildcard trust on roles
-    for (const r of roles.slice(0, 50)) {
-      const doc = r.AssumeRolePolicyDocument ? decodeURIComponent(r.AssumeRolePolicyDocument) : "";
+    // Wildcard trust scan
+    for (const block of roleBlocks.slice(0, 50)) {
+      const name = (block.match(/<RoleName>([^<]+)<\/RoleName>/) || [])[1];
+      const docRaw = (block.match(/<AssumeRolePolicyDocument>([^<]+)<\/AssumeRolePolicyDocument>/) || [])[1];
+      if (!name || !docRaw) continue;
+      const doc = decodeURIComponent(docRaw.replace(/&quot;/g, '"').replace(/&amp;/g, "&"));
       if (/"Principal"\s*:\s*"\*"/.test(doc) || /"AWS"\s*:\s*"\*"/.test(doc)) {
         findings.push(mkFinding(audit_id, user_id, "iam", "IAM-TRUST-WILDCARD", "critical",
-          `Role ${r.RoleName} trusts wildcard principal (*)`,
+          `Role ${name} trusts wildcard principal (*)`,
           "Any AWS principal can assume this role. Catastrophic privilege escalation surface.",
-          r.Arn, region, { framework_refs: { mitre: "T1078.004", cis: "1.16" }, evidence: { trust: doc } }));
+          `arn:aws:iam::${conn.aws_account_id}:role/${name}`, region,
+          { framework_refs: { mitre: "T1078.004", cis: "1.16" }, evidence: { trust: doc } }));
       }
     }
   }
 
+  // ===== S3 =====
   if (services.includes("s3")) {
     await log(audit_id, user_id, "recon", "→ enumerating S3 (buckets, public access, encryption)", "s3");
-    const s3 = new S3Client({ region, credentials: creds });
-    const buckets = (await s3.send(new ListBucketsCommand({}))).Buckets ?? [];
-    recon.s3 = { buckets: buckets.map((b) => b.Name) };
+    const buckets = await s3List(creds);
     await log(audit_id, user_id, "recon", `S3: ${buckets.length} buckets`, "s3");
     for (const b of buckets.slice(0, 30)) {
-      let enc = true, publicBlock = true, isPublic = false;
-      try { await s3.send(new GetBucketEncryptionCommand({ Bucket: b.Name })); } catch { enc = false; }
-      try {
-        const pab = await s3.send(new GetPublicAccessBlockCommand({ Bucket: b.Name }));
-        const cfg = pab.PublicAccessBlockConfiguration;
-        publicBlock = !!(cfg?.BlockPublicAcls && cfg?.BlockPublicPolicy && cfg?.IgnorePublicAcls && cfg?.RestrictPublicBuckets);
-      } catch { publicBlock = false; }
-      try {
-        const ps = await s3.send(new GetBucketPolicyStatusCommand({ Bucket: b.Name }));
-        isPublic = !!ps.PolicyStatus?.IsPublic;
-      } catch { /* none */ }
-      if (!enc) findings.push(mkFinding(audit_id, user_id, "s3", "S3-ENC-001", "high",
-        `S3 bucket ${b.Name} has no default encryption`, "Objects at rest are not encrypted by default.",
-        `arn:aws:s3:::${b.Name}`, region, { framework_refs: { cis: "2.1.1", nist: "SC-28" }, evidence: { encryption: false } }));
-      if (!publicBlock) findings.push(mkFinding(audit_id, user_id, "s3", "S3-PAB-001", "high",
-        `S3 bucket ${b.Name} missing full Public Access Block`, "Public ACLs/policies can expose data publicly.",
-        `arn:aws:s3:::${b.Name}`, region, { framework_refs: { cis: "2.1.5" }, evidence: { publicAccessBlock: false } }));
+      const enc = await s3BucketGet(b, region, "encryption", creds);
+      const pab = await s3BucketGet(b, region, "publicAccessBlock", creds);
+      const ps = await s3BucketGet(b, region, "policyStatus", creds);
+      const hasEnc = enc.ok && !/NoSuchEncryptionConfig/.test(enc.text);
+      const cfg = pab.text;
+      const fullBlock = pab.ok &&
+        /<BlockPublicAcls>true/.test(cfg) && /<BlockPublicPolicy>true/.test(cfg) &&
+        /<IgnorePublicAcls>true/.test(cfg) && /<RestrictPublicBuckets>true/.test(cfg);
+      const isPublic = ps.ok && /<IsPublic>true</.test(ps.text);
+      if (!hasEnc) findings.push(mkFinding(audit_id, user_id, "s3", "S3-ENC-001", "high",
+        `S3 bucket ${b} has no default encryption`, "Objects at rest are not encrypted by default.",
+        `arn:aws:s3:::${b}`, region, { framework_refs: { cis: "2.1.1", nist: "SC-28" }, evidence: { encryption: false } }));
+      if (!fullBlock) findings.push(mkFinding(audit_id, user_id, "s3", "S3-PAB-001", "high",
+        `S3 bucket ${b} missing full Public Access Block`, "Public ACLs/policies can expose data publicly.",
+        `arn:aws:s3:::${b}`, region, { framework_refs: { cis: "2.1.5" }, evidence: { publicAccessBlock: false } }));
       if (isPublic) findings.push(mkFinding(audit_id, user_id, "s3", "S3-PUB-001", "critical",
-        `S3 bucket ${b.Name} is PUBLIC`, "Bucket policy allows public access — possible data leak.",
-        `arn:aws:s3:::${b.Name}`, region, { framework_refs: { cis: "2.1.5", mitre: "T1530" }, evidence: { isPublic: true } }));
+        `S3 bucket ${b} is PUBLIC`, "Bucket policy allows public access — possible data leak.",
+        `arn:aws:s3:::${b}`, region, { framework_refs: { cis: "2.1.5", mitre: "T1530" }, evidence: { isPublic: true } }));
     }
   }
 
+  // ===== EC2 =====
   if (services.includes("ec2")) {
-    await log(audit_id, user_id, "recon", "→ enumerating EC2 (security groups, EBS, instances)", "ec2");
-    const ec2 = new EC2Client({ region, credentials: creds });
-    const sgs = (await ec2.send(new DescribeSecurityGroupsCommand({}))).SecurityGroups ?? [];
-    const vols = (await ec2.send(new DescribeVolumesCommand({}))).Volumes ?? [];
-    recon.ec2 = { sgs: sgs.length, vols: vols.length };
-    await log(audit_id, user_id, "recon", `EC2: ${sgs.length} SGs · ${vols.length} EBS volumes`, "ec2");
-    for (const sg of sgs) {
-      for (const p of sg.IpPermissions ?? []) {
-        const open = (p.IpRanges ?? []).some((r) => r.CidrIp === "0.0.0.0/0");
-        if (open) {
-          const port = p.FromPort === p.ToPort ? `${p.FromPort}` : `${p.FromPort}-${p.ToPort}`;
-          const sevPort = [22, 3389, 3306, 5432, 6379, 27017].includes(p.FromPort ?? -1) ? "critical" : "high";
-          findings.push(mkFinding(audit_id, user_id, "ec2", "EC2-SG-OPEN", sevPort,
-            `Security Group ${sg.GroupId} opens port ${port} to 0.0.0.0/0`,
-            `Internet-exposed ${p.IpProtocol}/${port}. Common ingress vector for attackers.`,
-            `arn:aws:ec2:${region}:${conn.aws_account_id}:security-group/${sg.GroupId}`, region,
-            { framework_refs: { cis: "5.2", mitre: "T1190" }, evidence: { protocol: p.IpProtocol, port } }));
-        }
+    await log(audit_id, user_id, "recon", "→ enumerating EC2 (security groups, EBS)", "ec2");
+    const sgXml = await ec2Call("DescribeSecurityGroups", region, creds);
+    const volXml = await ec2Call("DescribeVolumes", region, creds);
+    const sgItems = xmlAll(sgXml, "item");
+    const sgCount = (sgXml.match(/<groupId>/g) || []).length;
+    const volIds = xmlAll(volXml, "volumeId");
+    await log(audit_id, user_id, "recon", `EC2: ${sgCount} SGs · ${volIds.length} EBS volumes`, "ec2");
+
+    // Naive SG open-port scan
+    const openMatches = sgXml.matchAll(/<groupId>(sg-[a-f0-9]+)<\/groupId>([\s\S]*?)(?=<groupId>|<\/SecurityGroupInfo>|$)/g);
+    for (const m of openMatches) {
+      const sgId = m[1];
+      const blob = m[2];
+      const portMatches = blob.matchAll(/<fromPort>(-?\d+)<\/fromPort>[\s\S]*?<toPort>(-?\d+)<\/toPort>[\s\S]*?<ipProtocol>([^<]+)<\/ipProtocol>([\s\S]*?)(?=<fromPort>|<\/ipPermissions>)/g);
+      for (const p of portMatches) {
+        if (!/<cidrIp>0\.0\.0\.0\/0</.test(p[4])) continue;
+        const from = parseInt(p[1]); const to = parseInt(p[2]); const proto = p[3];
+        const port = from === to ? `${from}` : `${from}-${to}`;
+        const sev = [22, 3389, 3306, 5432, 6379, 27017].includes(from) ? "critical" : "high";
+        findings.push(mkFinding(audit_id, user_id, "ec2", "EC2-SG-OPEN", sev,
+          `Security Group ${sgId} opens port ${port} to 0.0.0.0/0`,
+          `Internet-exposed ${proto}/${port}. Common ingress vector for attackers.`,
+          `arn:aws:ec2:${region}:${conn.aws_account_id}:security-group/${sgId}`, region,
+          { framework_refs: { cis: "5.2", mitre: "T1190" }, evidence: { protocol: proto, port } }));
       }
     }
-    for (const v of vols.slice(0, 50)) {
-      if (v.Encrypted === false) {
+    // Unencrypted EBS
+    const volBlocks = volXml.matchAll(/<volumeId>(vol-[a-f0-9]+)<\/volumeId>([\s\S]*?)(?=<volumeId>|<\/volumeSet>)/g);
+    for (const v of volBlocks) {
+      if (/<encrypted>false</.test(v[2])) {
         findings.push(mkFinding(audit_id, user_id, "ec2", "EBS-ENC-001", "medium",
-          `EBS volume ${v.VolumeId} is unencrypted`, "Data at rest unencrypted on this EBS volume.",
-          `arn:aws:ec2:${region}:${conn.aws_account_id}:volume/${v.VolumeId}`, region,
+          `EBS volume ${v[1]} is unencrypted`, "Data at rest unencrypted on this EBS volume.",
+          `arn:aws:ec2:${region}:${conn.aws_account_id}:volume/${v[1]}`, region,
           { framework_refs: { cis: "2.2.1", nist: "SC-28" }, evidence: { encrypted: false } }));
       }
     }
   }
 
+  // ===== RDS =====
   if (services.includes("rds")) {
     await log(audit_id, user_id, "recon", "→ enumerating RDS instances", "rds");
-    const rds = new RDSClient({ region, credentials: creds });
-    const dbs = (await rds.send(new DescribeDBInstancesCommand({}))).DBInstances ?? [];
-    recon.rds = { count: dbs.length };
-    await log(audit_id, user_id, "recon", `RDS: ${dbs.length} instances`, "rds");
-    for (const d of dbs) {
-      if (d.PubliclyAccessible) findings.push(mkFinding(audit_id, user_id, "rds", "RDS-PUB-001", "critical",
-        `RDS ${d.DBInstanceIdentifier} is publicly accessible`, "Database is reachable from the internet.",
-        d.DBInstanceArn, region, { framework_refs: { cis: "2.3.3" }, evidence: { publiclyAccessible: true } }));
-      if (!d.StorageEncrypted) findings.push(mkFinding(audit_id, user_id, "rds", "RDS-ENC-001", "high",
-        `RDS ${d.DBInstanceIdentifier} storage unencrypted`, "DB storage is not encrypted at rest.",
-        d.DBInstanceArn, region, { framework_refs: { cis: "2.3.1", nist: "SC-28" }, evidence: { storageEncrypted: false } }));
+    const xml = await rdsCall("DescribeDBInstances", region, creds);
+    const dbBlocks = xml.matchAll(/<DBInstance>([\s\S]*?)<\/DBInstance>/g);
+    let count = 0;
+    for (const m of dbBlocks) {
+      count++;
+      const blob = m[1];
+      const id = (blob.match(/<DBInstanceIdentifier>([^<]+)/) || [])[1];
+      const arn = (blob.match(/<DBInstanceArn>([^<]+)/) || [])[1];
+      if (/<PubliclyAccessible>true</.test(blob)) {
+        findings.push(mkFinding(audit_id, user_id, "rds", "RDS-PUB-001", "critical",
+          `RDS ${id} is publicly accessible`, "Database is reachable from the internet.",
+          arn, region, { framework_refs: { cis: "2.3.3" }, evidence: { publiclyAccessible: true } }));
+      }
+      if (/<StorageEncrypted>false</.test(blob)) {
+        findings.push(mkFinding(audit_id, user_id, "rds", "RDS-ENC-001", "high",
+          `RDS ${id} storage unencrypted`, "DB storage is not encrypted at rest.",
+          arn, region, { framework_refs: { cis: "2.3.1", nist: "SC-28" }, evidence: { storageEncrypted: false } }));
+      }
     }
+    await log(audit_id, user_id, "recon", `RDS: ${count} instances`, "rds");
   }
 
+  // ===== Lambda =====
   if (services.includes("lambda")) {
     await log(audit_id, user_id, "recon", "→ enumerating Lambda", "lambda");
-    const lam = new LambdaClient({ region, credentials: creds });
-    const fns = (await lam.send(new ListFunctionsCommand({}))).Functions ?? [];
-    recon.lambda = { count: fns.length };
+    const list = await lambdaCall("/2015-03-31/functions/", region, creds);
+    const fns: any[] = list.json?.Functions ?? [];
     await log(audit_id, user_id, "recon", `Lambda: ${fns.length} functions`, "lambda");
     for (const f of fns.slice(0, 30)) {
-      try {
-        const url = await lam.send(new GetFunctionUrlConfigCommand({ FunctionName: f.FunctionName }));
-        if (url.AuthType === "NONE") findings.push(mkFinding(audit_id, user_id, "lambda", "LAMBDA-URL-NOAUTH", "high",
+      const url = await lambdaCall(`/2021-10-31/functions/${encodeURIComponent(f.FunctionName)}/url`, region, creds);
+      if (url.ok && url.json?.AuthType === "NONE") {
+        findings.push(mkFinding(audit_id, user_id, "lambda", "LAMBDA-URL-NOAUTH", "high",
           `Lambda ${f.FunctionName} has unauthenticated function URL`, "Function URL is publicly invokable without auth.",
-          f.FunctionArn, region, { framework_refs: { mitre: "T1190" }, evidence: { authType: "NONE", url: url.FunctionUrl } }));
-      } catch { /* no URL */ }
+          f.FunctionArn, region, { framework_refs: { mitre: "T1190" }, evidence: { authType: "NONE", url: url.json.FunctionUrl } }));
+      }
       const env = f.Environment?.Variables ?? {};
-      const suspect = Object.entries(env).filter(([k]) => /SECRET|TOKEN|PASSWORD|KEY/i.test(k));
-      if (suspect.length) findings.push(mkFinding(audit_id, user_id, "lambda", "LAMBDA-ENV-SECRET", "medium",
-        `Lambda ${f.FunctionName} has secret-like env vars`, "Plaintext secrets in environment variables. Use Secrets Manager.",
-        f.FunctionArn, region, { framework_refs: { nist: "IA-5" }, evidence: { keys: suspect.map(([k]) => k) } }));
-    }
-  }
-
-  if (services.includes("cloudtrail")) {
-    await log(audit_id, user_id, "recon", "→ enumerating CloudTrail", "cloudtrail");
-    const ct = new CloudTrailClient({ region, credentials: creds });
-    const trails = (await ct.send(new DescribeTrailsCommand({}))).trailList ?? [];
-    recon.cloudtrail = { count: trails.length };
-    if (trails.length === 0) findings.push(mkFinding(audit_id, user_id, "cloudtrail", "CT-NONE", "critical",
-      "No CloudTrail trails configured", "No audit logging — incident response will be blind.",
-      `arn:aws:cloudtrail:${region}:${conn.aws_account_id}:*`, region,
-      { framework_refs: { cis: "3.1", nist: "AU-2" }, evidence: { trails: 0 } }));
-    else {
-      for (const t of trails) {
-        try {
-          const status = await ct.send(new GetTrailStatusCommand({ Name: t.TrailARN! }));
-          if (!status.IsLogging) findings.push(mkFinding(audit_id, user_id, "cloudtrail", "CT-STOPPED", "high",
-            `CloudTrail ${t.Name} is not logging`, "Trail exists but logging is disabled.",
-            t.TrailARN, region, { framework_refs: { cis: "3.1" }, evidence: { isLogging: false } }));
-        } catch { /* skip */ }
+      const suspect = Object.keys(env).filter((k) => /SECRET|TOKEN|PASSWORD|KEY/i.test(k));
+      if (suspect.length) {
+        findings.push(mkFinding(audit_id, user_id, "lambda", "LAMBDA-ENV-SECRET", "medium",
+          `Lambda ${f.FunctionName} has secret-like env vars`, "Plaintext secrets in environment variables. Use Secrets Manager.",
+          f.FunctionArn, region, { framework_refs: { nist: "IA-5" }, evidence: { keys: suspect } }));
       }
     }
   }
 
+  // ===== CloudTrail =====
+  if (services.includes("cloudtrail")) {
+    await log(audit_id, user_id, "recon", "→ enumerating CloudTrail", "cloudtrail");
+    const trails = await ctCall("DescribeTrails", region, creds);
+    const list: any[] = trails.trailList ?? [];
+    if (list.length === 0) {
+      findings.push(mkFinding(audit_id, user_id, "cloudtrail", "CT-NONE", "critical",
+        "No CloudTrail trails configured", "No audit logging — incident response will be blind.",
+        `arn:aws:cloudtrail:${region}:${conn.aws_account_id}:*`, region,
+        { framework_refs: { cis: "3.1", nist: "AU-2" }, evidence: { trails: 0 } }));
+    } else {
+      for (const t of list) {
+        const status = await ctCall("GetTrailStatus", region, creds, t.TrailARN);
+        if (!status.IsLogging) {
+          findings.push(mkFinding(audit_id, user_id, "cloudtrail", "CT-STOPPED", "high",
+            `CloudTrail ${t.Name} is not logging`, "Trail exists but logging is disabled.",
+            t.TrailARN, region, { framework_refs: { cis: "3.1" }, evidence: { isLogging: false } }));
+        }
+      }
+    }
+  }
+
+  // ===== GuardDuty =====
   if (services.includes("guardduty")) {
     await log(audit_id, user_id, "recon", "→ checking GuardDuty", "guardduty");
-    const gd = new GuardDutyClient({ region, credentials: creds });
-    const det = (await gd.send(new ListDetectorsCommand({}))).DetectorIds ?? [];
-    if (det.length === 0) findings.push(mkFinding(audit_id, user_id, "guardduty", "GD-OFF", "high",
-      `GuardDuty disabled in ${region}`, "No threat detection enabled in this region.",
-      `arn:aws:guardduty:${region}:${conn.aws_account_id}:*`, region,
-      { framework_refs: { nist: "SI-4" }, evidence: { detectors: 0 } }));
+    const det = await gdCall(region, creds);
+    const ids: string[] = det?.DetectorIds ?? [];
+    if (ids.length === 0) {
+      findings.push(mkFinding(audit_id, user_id, "guardduty", "GD-OFF", "high",
+        `GuardDuty disabled in ${region}`, "No threat detection enabled in this region.",
+        `arn:aws:guardduty:${region}:${conn.aws_account_id}:*`, region,
+        { framework_refs: { nist: "SI-4" }, evidence: { detectors: 0 } }));
+    }
   }
 
   await log(audit_id, user_id, "misconfig", `Misconfig agent evaluated checks · ${findings.length} findings raised`, "summary");
-
-  // Persist findings
   if (findings.length) await admin.from("findings").insert(findings);
 
-  // ===== Critic (LLM) — challenge findings to remove false positives =====
+  // ===== Critic =====
   if (findings.length) {
     await log(audit_id, user_id, "critic", "→ challenging findings for false positives", "review");
     const critique = await llm("google/gemini-3-flash-preview", [
@@ -269,7 +438,7 @@ async function runPipeline(audit_id: string, user_id: string) {
     }
   }
 
-  // ===== Attack Path agent (LLM) =====
+  // ===== Attack Path =====
   if (findings.length >= 2) {
     await log(audit_id, user_id, "attackpath", "→ chaining findings into attack paths", "analysis");
     const apResp = await llm("google/gemini-3-flash-preview", [
@@ -293,7 +462,7 @@ async function runPipeline(audit_id: string, user_id: string) {
     }
   }
 
-  // ===== Remediation agent (LLM) — top critical/high =====
+  // ===== Remediation =====
   const top = findings.filter((f) => f.severity === "critical" || f.severity === "high").slice(0, 8);
   if (top.length) {
     await log(audit_id, user_id, "remediation", `→ generating Terraform/CLI fixes for top ${top.length} findings`, "fixes");
@@ -304,7 +473,6 @@ async function runPipeline(audit_id: string, user_id: string) {
       ], true);
       try {
         const parsed = JSON.parse(remResp);
-        // need DB id of finding (re-query since we inserted bulk)
         const { data: row } = await admin.from("findings").select("id").eq("audit_id", audit_id).eq("check_id", f.check_id).limit(1).single();
         if (row) await admin.from("remediations").insert({
           finding_id: row.id, user_id,
@@ -326,29 +494,4 @@ async function runPipeline(audit_id: string, user_id: string) {
   };
   await log(audit_id, user_id, "reporter", `Audit complete · ${summary.total} findings · ${summary.critical} critical · ${summary.high} high`, "final", summary);
   await admin.from("audits").update({ status: "completed", completed_at: new Date().toISOString(), summary }).eq("id", audit_id);
-}
-
-function mkFinding(audit_id: string, user_id: string, service: string, check_id: string, severity: string,
-  title: string, description: string, resource_arn: string | null | undefined, region: string, extra: any) {
-  return {
-    audit_id, user_id, service, check_id, severity, title, description,
-    resource_arn: resource_arn ?? null, region,
-    framework_refs: extra.framework_refs ?? null,
-    evidence: extra.evidence ?? null,
-    confidence: 0.9,
-  };
-}
-
-async function llm(model: string, messages: any[], json = false): Promise<string> {
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model, messages,
-      ...(json ? { response_format: { type: "json_object" } } : {}),
-    }),
-  });
-  if (!res.ok) throw new Error(`AI gateway ${res.status}: ${await res.text()}`);
-  const j = await res.json();
-  return j.choices?.[0]?.message?.content ?? "{}";
 }
