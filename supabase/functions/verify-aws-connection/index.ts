@@ -1,5 +1,5 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { STSClient, AssumeRoleCommand, GetCallerIdentityCommand } from "https://esm.sh/@aws-sdk/client-sts@3.658.1";
+import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { STSClient, AssumeRoleCommand, GetCallerIdentityCommand } from "npm:@aws-sdk/client-sts@3.658.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
