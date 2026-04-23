@@ -77,14 +77,14 @@ export default function Connections() {
           <div className="text-xs font-mono text-muted-foreground">// configure access</div>
           <h1 className="font-display text-3xl font-bold">AWS Accounts</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Connect an AWS account using an IAM user's access key + secret. AegisAWS only needs read-only permissions to audit your posture.
+            Connect an AWS account using an IAM user's access key + secret. Trace only needs read-only permissions to audit your posture.
           </p>
         </div>
 
         <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-6 space-y-5 shadow-card">
           <div className="flex items-center gap-2 text-primary">
             <ShieldCheck className="h-5 w-5" />
-            <h3 className="font-display font-semibold">Create an AegisAWS IAM user in AWS</h3>
+            <h3 className="font-display font-semibold">Create a Trace IAM user in AWS</h3>
           </div>
 
           <ol className="space-y-4 text-sm leading-relaxed">
@@ -96,7 +96,7 @@ export default function Connections() {
               and click <span className="font-mono text-foreground">Create user</span>.
             </li>
             <li>
-              <span className="font-mono text-primary">[2]</span> Name the user <span className="font-mono text-foreground">aegisaws-auditor</span>. Leave “Provide user access to the AWS Management Console” <span className="font-mono text-foreground">unchecked</span>. Click <span className="font-mono text-foreground">Next</span>.
+              <span className="font-mono text-primary">[2]</span> Name the user <span className="font-mono text-foreground">trace-auditor</span>. Leave “Provide user access to the AWS Management Console” <span className="font-mono text-foreground">unchecked</span>. Click <span className="font-mono text-foreground">Next</span>.
             </li>
             <li>
               <span className="font-mono text-primary">[3]</span> Choose <span className="font-mono text-foreground">Attach policies directly</span> and attach these two AWS-managed policies:
@@ -104,7 +104,7 @@ export default function Connections() {
                 <div className="rounded-md border border-border bg-background/60 px-3 py-2 font-mono text-xs">SecurityAudit</div>
                 <div className="rounded-md border border-border bg-background/60 px-3 py-2 font-mono text-xs">ReadOnlyAccess</div>
               </div>
-              <div className="text-xs text-muted-foreground mt-2">Both are read-only. AegisAWS cannot modify, create, or delete anything in your account.</div>
+              <div className="text-xs text-muted-foreground mt-2">Both are read-only. Trace cannot modify, create, or delete anything in your account.</div>
             </li>
             <li>
               <span className="font-mono text-primary">[4]</span> Finish creating the user. Open it, go to <span className="font-mono text-foreground">Security credentials → Access keys → Create access key</span>. Choose <span className="font-mono text-foreground">Third-party service</span>, then <span className="font-mono text-foreground">Create</span>.

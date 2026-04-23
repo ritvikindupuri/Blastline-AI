@@ -3,7 +3,7 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { LayoutDashboard, Plug, Activity, FileSearch, LogOut, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import logo from "@/assets/aegis-logo.png";
+import logo from "@/assets/trace-logo.png";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();
@@ -21,9 +21,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex">
       <aside className="w-60 border-r border-border bg-sidebar/80 backdrop-blur-xl flex flex-col">
         <Link to="/dashboard" className="flex items-center gap-2.5 px-5 h-16 border-b border-sidebar-border">
-          <img src={logo} alt="AegisAWS" width={32} height={32} className="h-8 w-8" />
-          <div className="font-display font-semibold tracking-tight text-foreground text-base">
-            Aegis<span className="text-primary">AWS</span>
+          <img src={logo} alt="Trace" width={26} height={26} style={{ height: 26, width: 26 }} />
+          <div className="font-display font-semibold tracking-tight text-foreground text-lg">
+            Trace<span className="text-primary">.</span>
           </div>
         </Link>
         <nav className="flex-1 p-3 space-y-1">

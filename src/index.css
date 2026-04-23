@@ -8,66 +8,64 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* SentryGrid — SOC / terminal aesthetic. Dark by default. */
-    --background: 222 39% 6%;
-    --foreground: 180 12% 92%;
+    /* Trace — AWS Squid Ink (#0F1B2D) + AWS Orange (#FF9900) */
+    --background: 215 51% 12%;          /* Squid Ink #0F1B2D */
+    --foreground: 0 0% 98%;
 
-    --card: 222 35% 9%;
-    --card-foreground: 180 12% 92%;
+    --card: 215 45% 16%;                /* slightly elevated navy */
+    --card-foreground: 0 0% 98%;
 
-    --popover: 222 38% 8%;
-    --popover-foreground: 180 12% 92%;
+    --popover: 215 50% 14%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 174 90% 55%;            /* neon cyan */
-    --primary-foreground: 222 50% 6%;
-    --primary-glow: 174 100% 70%;
+    --primary: 36 100% 50%;             /* AWS Orange #FF9900 */
+    --primary-foreground: 215 60% 10%;
+    --primary-glow: 36 100% 60%;
 
-    --secondary: 222 30% 14%;
-    --secondary-foreground: 180 12% 92%;
+    --secondary: 215 35% 20%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 222 25% 13%;
-    --muted-foreground: 215 14% 60%;
+    --muted: 215 30% 18%;
+    --muted-foreground: 215 15% 70%;
 
-    --accent: 38 95% 60%;              /* amber */
-    --accent-foreground: 222 50% 6%;
+    --accent: 36 100% 50%;
+    --accent-foreground: 215 60% 10%;
 
-    --destructive: 0 80% 60%;
+    --destructive: 0 75% 58%;
     --destructive-foreground: 0 0% 100%;
 
-    --warning: 38 95% 60%;
-    --warning-foreground: 222 50% 6%;
+    --warning: 36 100% 50%;
+    --warning-foreground: 215 60% 10%;
 
-    --success: 152 70% 50%;
-    --success-foreground: 222 50% 6%;
+    --success: 152 60% 45%;
+    --success-foreground: 0 0% 100%;
 
-    --critical: 350 95% 62%;
+    --critical: 358 75% 58%;
     --critical-foreground: 0 0% 100%;
 
-    --high: 14 90% 60%;
-    --medium: 38 95% 60%;
-    --low: 200 90% 60%;
-    --info: 215 14% 60%;
+    --high: 18 90% 58%;
+    --medium: 36 100% 50%;
+    --low: 200 80% 55%;
+    --info: 215 15% 70%;
 
-    --border: 222 25% 16%;
-    --input: 222 30% 14%;
-    --ring: 174 90% 55%;
+    --border: 215 35% 22%;
+    --input: 215 35% 20%;
+    --ring: 36 100% 50%;
 
-    --radius: 0.5rem;
+    --radius: 0.375rem;
 
-    --gradient-grid: linear-gradient(180deg, hsl(222 39% 6%) 0%, hsl(222 45% 4%) 100%);
-    --gradient-neon: linear-gradient(135deg, hsl(174 90% 55%), hsl(200 90% 60%));
-    --gradient-amber: linear-gradient(135deg, hsl(38 95% 60%), hsl(14 90% 60%));
-    --shadow-glow: 0 0 24px -4px hsl(174 90% 55% / 0.45);
-    --shadow-card: 0 1px 0 0 hsl(180 12% 92% / 0.04) inset, 0 8px 24px -12px hsl(222 80% 2% / 0.6);
+    --gradient-grid: linear-gradient(180deg, hsl(215 51% 12%) 0%, hsl(215 55% 9%) 100%);
+    --shadow-glow: 0 0 0 1px hsl(36 100% 50% / 0.25), 0 8px 24px -8px hsl(36 100% 50% / 0.35);
+    --shadow-card: 0 1px 0 0 hsl(0 0% 100% / 0.04) inset, 0 4px 16px -8px hsl(215 80% 4% / 0.6);
 
-    --sidebar-background: 222 42% 5%;
-    --sidebar-foreground: 180 12% 80%;
-    --sidebar-primary: 174 90% 55%;
-    --sidebar-primary-foreground: 222 50% 6%;
-    --sidebar-accent: 222 30% 12%;
-    --sidebar-accent-foreground: 180 12% 92%;
-    --sidebar-border: 222 25% 14%;
-    --sidebar-ring: 174 90% 55%;
+    --sidebar-background: 215 55% 10%;
+    --sidebar-foreground: 215 15% 75%;
+    --sidebar-primary: 36 100% 50%;
+    --sidebar-primary-foreground: 215 60% 10%;
+    --sidebar-accent: 215 40% 17%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 215 35% 18%;
+    --sidebar-ring: 36 100% 50%;
   }
 
   /* Single-theme app: light = same dark tokens (we don't ship a light mode). */
@@ -79,24 +77,20 @@ All colors MUST be HSL.
   html, body, #root { @apply h-full; }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
-    background-image:
-      radial-gradient(1200px 600px at 20% -10%, hsl(174 90% 55% / 0.06), transparent 60%),
-      radial-gradient(900px 500px at 110% 10%, hsl(38 95% 60% / 0.05), transparent 60%),
-      var(--gradient-grid);
-    background-attachment: fixed;
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    background-color: hsl(var(--background));
   }
-  h1, h2, h3, h4, .font-display { font-family: 'Space Grotesk', system-ui, sans-serif; letter-spacing: -0.02em; }
-  code, pre, .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  h1, h2, h3, h4, .font-display { font-family: 'IBM Plex Sans', system-ui, sans-serif; letter-spacing: -0.02em; }
+  code, pre, .font-mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
 }
 
 @layer utilities {
-  .text-glow { text-shadow: 0 0 24px hsl(var(--primary) / 0.45); }
+  .text-glow { text-shadow: 0 0 32px hsl(var(--primary) / 0.35); }
   .grid-bg {
     background-image:
-      linear-gradient(hsl(var(--border) / 0.4) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--border) / 0.4) 1px, transparent 1px);
-    background-size: 32px 32px;
+      linear-gradient(hsl(var(--border) / 0.5) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.5) 1px, transparent 1px);
+    background-size: 48px 48px;
     background-position: -1px -1px;
   }
   .scanline::before {
