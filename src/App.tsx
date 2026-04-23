@@ -3,8 +3,19 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import Landing from "./pages/Landing.tsx";
+import Auth from "./pages/Auth.tsx";
+import Dashboard from "./pages/Dashboard.tsx";
+import Connections from "./pages/Connections.tsx";
+import NewAudit from "./pages/NewAudit.tsx";
+import Audits from "./pages/Audits.tsx";
+import AuditDetail from "./pages/AuditDetail.tsx";
+import Findings from "./pages/Findings.tsx";
+import AttackPaths from "./pages/AttackPaths.tsx";
+import AttackPathDetail from "./pages/AttackPathDetail.tsx";
+import { AuthProvider } from "./lib/auth";
+import { RequireAuth } from "./components/layout/RequireAuth";
 
 const queryClient = new QueryClient();
 
@@ -14,11 +25,21 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
+            <Route path="/connections" element={<RequireAuth><Connections /></RequireAuth>} />
+            <Route path="/audits" element={<RequireAuth><Audits /></RequireAuth>} />
+            <Route path="/audits/new" element={<RequireAuth><NewAudit /></RequireAuth>} />
+            <Route path="/audits/:id" element={<RequireAuth><AuditDetail /></RequireAuth>} />
+            <Route path="/findings" element={<RequireAuth><Findings /></RequireAuth>} />
+            <Route path="/attack-paths" element={<RequireAuth><AttackPaths /></RequireAuth>} />
+            <Route path="/attack-paths/:id" element={<RequireAuth><AttackPathDetail /></RequireAuth>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
