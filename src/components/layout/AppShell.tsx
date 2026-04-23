@@ -3,7 +3,7 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { LayoutDashboard, Plug, Activity, FileSearch, LogOut, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import logo from "@/assets/vaultline-logo.png";
+import logo from "@/assets/aegis-logo.png";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();
@@ -20,13 +20,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex">
       <aside className="w-60 border-r border-border bg-sidebar/80 backdrop-blur-xl flex flex-col">
-        <Link to="/dashboard" className="flex items-center gap-2 px-5 h-16 border-b border-sidebar-border">
-          <div className="relative">
-            <img src={logo} alt="Vaultline" width={24} height={24} className="h-6 w-6" />
-            <span className="absolute -inset-1 rounded-full bg-primary/20 blur-md -z-10" />
-          </div>
-          <div className="font-display font-semibold tracking-tight text-foreground">
-            Vault<span className="text-primary">line</span>
+        <Link to="/dashboard" className="flex items-center gap-2.5 px-5 h-16 border-b border-sidebar-border">
+          <img src={logo} alt="AegisAWS" width={32} height={32} className="h-8 w-8" />
+          <div className="font-display font-semibold tracking-tight text-foreground text-base">
+            Aegis<span className="text-primary">AWS</span>
           </div>
         </Link>
         <nav className="flex-1 p-3 space-y-1">

@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Activity, Network, GitBranch, ScanSearch, Bot, ArrowRight, CheckCircle2, ShieldCheck } from "lucide-react";
-import logo from "@/assets/vaultline-logo.png";
+import logo from "@/assets/aegis-logo.png";
 
 const agents = [
   { icon: ScanSearch, name: "Recon", desc: "Enumerates IAM, S3, EC2, Lambda, RDS, CloudTrail and GuardDuty across regions." },
@@ -19,9 +19,9 @@ export default function Landing() {
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/40 to-background" />
 
       <header className="relative z-10 flex items-center justify-between px-8 h-16 border-b border-border/60 backdrop-blur-xl">
-        <div className="flex items-center gap-2">
-          <img src={logo} alt="Vaultline" width={24} height={24} className="h-6 w-6" />
-          <span className="font-display font-semibold tracking-tight">Vaultline</span>
+        <div className="flex items-center gap-2.5">
+          <img src={logo} alt="AegisAWS" width={36} height={36} className="h-9 w-9" />
+          <span className="font-display font-semibold tracking-tight text-lg">Aegis<span className="text-primary">AWS</span></span>
         </div>
         <div className="flex items-center gap-2">
           <Link to="/auth?mode=signin"><Button variant="ghost" size="sm">Sign in</Button></Link>
@@ -39,7 +39,7 @@ export default function Landing() {
           <span className="text-primary text-glow">interrogated by AI.</span>
         </h1>
         <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
-          Vaultline runs a fleet of specialized agents across your AWS environment to uncover
+          AegisAWS runs a fleet of specialized agents across your AWS environment to uncover
           misconfigurations, chain them into attack paths, score blast radius, and ship Terraform fixes — in minutes.
         </p>
         <div className="mt-10 flex items-center justify-center gap-3">
@@ -74,7 +74,7 @@ export default function Landing() {
       </section>
 
       <footer className="relative z-10 border-t border-border/60 py-8 text-center text-xs text-muted-foreground font-mono">
-        Vaultline · defensive security operations · {new Date().getFullYear()}
+        AegisAWS · defensive security operations · {new Date().getFullYear()}
       </footer>
     </div>
   );

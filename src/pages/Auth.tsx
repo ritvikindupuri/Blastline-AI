@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import logo from "@/assets/vaultline-logo.png";
+import logo from "@/assets/aegis-logo.png";
 
 export default function Auth() {
   const [params] = useSearchParams();
@@ -47,9 +47,9 @@ export default function Auth() {
     <div className="min-h-screen grid place-items-center px-4 relative">
       <div className="absolute inset-0 grid-bg opacity-20" />
       <div className="relative z-10 w-full max-w-md">
-        <Link to="/" className="flex items-center justify-center gap-2 mb-8">
-          <img src={logo} alt="Vaultline" width={28} height={28} className="h-7 w-7" />
-          <span className="font-display font-semibold text-lg">Vault<span className="text-primary">line</span></span>
+        <Link to="/" className="flex flex-col items-center justify-center gap-3 mb-8">
+          <img src={logo} alt="AegisAWS" width={72} height={72} className="h-18 w-18" style={{ height: 72, width: 72 }} />
+          <span className="font-display font-semibold text-2xl tracking-tight">Aegis<span className="text-primary">AWS</span></span>
         </Link>
         <div className="rounded-xl border border-border bg-card/70 backdrop-blur p-6 shadow-card">
           <div className="text-xs font-mono text-muted-foreground">// {mode === "signin" ? "authenticate" : "provision operator"}</div>
