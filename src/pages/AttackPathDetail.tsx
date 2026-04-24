@@ -57,7 +57,7 @@ export default function AttackPathDetail() {
     <AppShell>
       <div className="space-y-6">
         <div>
-          <Link to="/attack-paths" className="text-xs font-mono text-muted-foreground hover:text-primary">// â† all paths</Link>
+          <Link to="/attack-paths" className="text-xs font-mono text-muted-foreground hover:text-primary">ÿ† all paths</Link>
           <div className="flex items-center gap-3 mt-2">
             <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded border ${SEV_RING[path.severity as Severity] ?? ""}`}>{path.severity}</span>
             <h1 className="font-display text-3xl font-bold">{path.title}</h1>
@@ -74,7 +74,7 @@ export default function AttackPathDetail() {
 
         {path.blast_radius && (
           <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-5 shadow-card">
-            <div className="text-xs font-mono text-muted-foreground">// blast radius</div>
+            <div className="text-xs font-mono text-muted-foreground">Blast radius</div>
             <pre className="mt-2 text-xs font-mono whitespace-pre-wrap text-foreground/90">{JSON.stringify(path.blast_radius, null, 2)}</pre>
           </div>
         )}

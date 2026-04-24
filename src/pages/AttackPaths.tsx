@@ -18,7 +18,7 @@ export default function AttackPaths() {
     <AppShell>
       <div className="space-y-6">
         <div>
-          <div className="text-xs font-mono text-muted-foreground">// chained risk</div>
+          <div className="text-xs font-mono text-muted-foreground">Chained risk</div>
           <h1 className="font-display text-3xl font-bold">Attack Paths</h1>
         </div>
         <div className="grid md:grid-cols-2 gap-4">

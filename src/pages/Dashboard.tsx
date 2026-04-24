@@ -45,7 +45,7 @@ export default function Dashboard() {
       <div className="space-y-6">
         <div className="flex items-end justify-between">
           <div>
-            <div className="text-xs font-mono text-muted-foreground">// command center</div>
+            <div className="text-xs font-mono text-muted-foreground">Command center</div>
             <h1 className="font-display text-3xl font-bold">Dashboard</h1>
           </div>
           <Link to="/audits/new"><Button className="gap-2 shadow-glow"><Plus className="h-4 w-4" /> New audit</Button></Link>
@@ -65,7 +65,7 @@ export default function Dashboard() {
 
         <div className="grid lg:grid-cols-2 gap-4">
           <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-5 shadow-card">
-            <div className="text-xs font-mono text-muted-foreground">// severity distribution</div>
+            <div className="text-xs font-mono text-muted-foreground">Severity distribution</div>
             <h3 className="font-display font-semibold mt-1 mb-4">Findings by severity</h3>
             <div className="space-y-2">
               {(["critical", "high", "medium", "low", "info"] as Severity[]).map((s) => {
@@ -86,7 +86,7 @@ export default function Dashboard() {
           </div>
 
           <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-5 shadow-card">
-            <div className="text-xs font-mono text-muted-foreground">// recent runs</div>
+            <div className="text-xs font-mono text-muted-foreground">Recent runs</div>
             <h3 className="font-display font-semibold mt-1 mb-4">Recent audits</h3>
             {recent.length === 0 ? (
               <div className="text-sm text-muted-foreground">No audits yet. <Link to="/audits/new" className="text-primary">Start one →</Link></div>

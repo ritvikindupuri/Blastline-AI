@@ -49,7 +49,7 @@ export default function NewAudit() {
     <AppShell>
       <div className="max-w-3xl space-y-6">
         <div>
-          <div className="text-xs font-mono text-muted-foreground">// new run</div>
+          <div className="text-xs font-mono text-muted-foreground">New run</div>
           <h1 className="font-display text-3xl font-bold">Configure audit</h1>
         </div>
 

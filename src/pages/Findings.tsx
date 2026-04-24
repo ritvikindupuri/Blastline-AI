@@ -20,7 +20,7 @@ export default function Findings() {
     <AppShell>
       <div className="space-y-6">
         <div>
-          <div className="text-xs font-mono text-muted-foreground">// findings</div>
+          <div className="text-xs font-mono text-muted-foreground">Findings</div>
           <h1 className="font-display text-3xl font-bold">Findings</h1>
         </div>
 
