@@ -122,6 +122,53 @@ export default function Connections() {
           </p>
         </div>
 
+        {/* Audit preset */}
+        <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-6 space-y-4 shadow-card">
+          <div className="flex items-center gap-2 text-primary">
+            <Filter className="h-5 w-5" />
+            <h3 className="font-display font-semibold">Audit preset</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Pick the services Trace should audit. We'll recommend the minimal set of AWS-managed policies to attach.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {AUDIT_SERVICES.map((s) => {
+              const checked = enabledServices.has(s.key);
+              return (
+                <label
+                  key={s.key}
+                  className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${
+                    checked ? "border-primary/60 bg-primary/5" : "border-border bg-background/40 hover:bg-background/60"
+                  }`}
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(v) => {
+                      setEnabledServices((prev) => {
+                        const next = new Set(prev);
+                        if (v) next.add(s.key); else next.delete(s.key);
+                        return next;
+                      });
+                    }}
+                  />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{s.label}</div>
+                    <div className="text-xs text-muted-foreground font-mono mt-0.5">{s.needs.join(" + ")}</div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+          <div className="rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">
+            <span className="text-muted-foreground">Recommended policies for your selection: </span>
+            {recommended.size === 0 ? (
+              <span className="text-muted-foreground">none — pick at least one service.</span>
+            ) : (
+              <span className="font-mono text-primary">{Array.from(recommended).join(" + ")}</span>
+            )}
+          </div>
+        </div>
+
         <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-6 space-y-5 shadow-card">
           <div className="flex items-center gap-2 text-primary">
             <ShieldCheck className="h-5 w-5" />
