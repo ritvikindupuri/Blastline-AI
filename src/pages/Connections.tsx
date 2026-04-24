@@ -6,7 +6,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Plug, CheckCircle2, XCircle, Loader2, Trash2, ShieldCheck, ExternalLink, Eye, EyeOff } from "lucide-react";
+import { Plug, CheckCircle2, XCircle, Loader2, Trash2, ShieldCheck, ExternalLink, Eye, EyeOff, Copy, Info, Filter } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+
+const AWS_POLICIES = {
+  SecurityAudit: {
+    name: "SecurityAudit",
+    arn: "arn:aws:iam::aws:policy/SecurityAudit",
+    blurb: "Read-only access to security configuration metadata across AWS services.",
+  },
+  ReadOnlyAccess: {
+    name: "ReadOnlyAccess",
+    arn: "arn:aws:iam::aws:policy/ReadOnlyAccess",
+    blurb: "Broader read-only access — required for deep resource enumeration (S3 contents, EC2, Lambda, RDS, etc.).",
+  },
+} as const;
+
+type ServiceKey = "iam" | "s3" | "ec2_lambda" | "rds_dynamodb" | "cloudtrail_guardduty";
+
+const AUDIT_SERVICES: { key: ServiceKey; label: string; needs: ("SecurityAudit" | "ReadOnlyAccess")[] }[] = [
+  { key: "iam", label: "IAM (users, roles, policies)", needs: ["SecurityAudit"] },
+  { key: "cloudtrail_guardduty", label: "CloudTrail & GuardDuty", needs: ["SecurityAudit"] },
+  { key: "s3", label: "S3 (buckets + object-level metadata)", needs: ["SecurityAudit", "ReadOnlyAccess"] },
+  { key: "ec2_lambda", label: "EC2 & Lambda enumeration", needs: ["ReadOnlyAccess"] },
+  { key: "rds_dynamodb", label: "RDS & DynamoDB", needs: ["ReadOnlyAccess"] },
+];
 
 export default function Connections() {
   const { user } = useAuth();
@@ -17,6 +41,22 @@ export default function Connections() {
   const [showSecret, setShowSecret] = useState(false);
   const [region, setRegion] = useState("us-east-1");
   const [verifying, setVerifying] = useState(false);
+  const [enabledServices, setEnabledServices] = useState<Set<ServiceKey>>(
+    new Set<ServiceKey>(["iam", "cloudtrail_guardduty", "s3"]),
+  );
+
+  const recommended = (() => {
+    const set = new Set<"SecurityAudit" | "ReadOnlyAccess">();
+    enabledServices.forEach((s) => {
+      AUDIT_SERVICES.find((x) => x.key === s)?.needs.forEach((n) => set.add(n));
+    });
+    return set;
+  })();
+
+  function copy(text: string, label: string) {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied`);
+  }
 
   async function load() {
     const { data } = await supabase.from("aws_connections").select("*").order("created_at", { ascending: false });
@@ -81,6 +121,53 @@ export default function Connections() {
           </p>
         </div>
 
+        {/* Audit preset */}
+        <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-6 space-y-4 shadow-card">
+          <div className="flex items-center gap-2 text-primary">
+            <Filter className="h-5 w-5" />
+            <h3 className="font-display font-semibold">Audit preset</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Pick the services Trace should audit. We'll recommend the minimal set of AWS-managed policies to attach.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {AUDIT_SERVICES.map((s) => {
+              const checked = enabledServices.has(s.key);
+              return (
+                <label
+                  key={s.key}
+                  className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${
+                    checked ? "border-primary/60 bg-primary/5" : "border-border bg-background/40 hover:bg-background/60"
+                  }`}
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(v) => {
+                      setEnabledServices((prev) => {
+                        const next = new Set(prev);
+                        if (v) next.add(s.key); else next.delete(s.key);
+                        return next;
+                      });
+                    }}
+                  />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{s.label}</div>
+                    <div className="text-xs text-muted-foreground font-mono mt-0.5">{s.needs.join(" + ")}</div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+          <div className="rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">
+            <span className="text-muted-foreground">Recommended policies for your selection: </span>
+            {recommended.size === 0 ? (
+              <span className="text-muted-foreground">none — pick at least one service.</span>
+            ) : (
+              <span className="font-mono text-primary">{Array.from(recommended).join(" + ")}</span>
+            )}
+          </div>
+        </div>
+
         <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-6 space-y-5 shadow-card">
           <div className="flex items-center gap-2 text-primary">
             <ShieldCheck className="h-5 w-5" />
@@ -99,13 +186,48 @@ export default function Connections() {
               <span className="font-mono text-primary">[2]</span> Name the user <span className="font-mono text-foreground">trace-auditor</span>. Leave “Provide user access to the AWS Management Console” <span className="font-mono text-foreground">unchecked</span>. Click <span className="font-mono text-foreground">Next</span>, then on the permissions screen click <span className="font-mono text-foreground">Next</span> again (skip — we'll attach permissions by ARN after the user exists). Click <span className="font-mono text-foreground">Create user</span>.
             </li>
             <li>
-              <span className="font-mono text-primary">[3]</span> Open the new <span className="font-mono text-foreground">trace-auditor</span> user, go to the <span className="font-mono text-foreground">Permissions</span> tab and choose <span className="font-mono text-foreground">Add permissions → Attach policies directly</span>. Trace requires these two AWS-managed policy ARNs:
-              <div className="mt-2 space-y-2">
-                <div className="rounded-md border border-border bg-background/60 px-3 py-2 font-mono text-xs break-all">arn:aws:iam::aws:policy/SecurityAudit</div>
-                <div className="rounded-md border border-border bg-background/60 px-3 py-2 font-mono text-xs break-all">arn:aws:iam::aws:policy/ReadOnlyAccess</div>
+              <span className="font-mono text-primary">[3]</span> Open the new <span className="font-mono text-foreground">trace-auditor</span> user, go to the <span className="font-mono text-foreground">Permissions</span> tab and choose <span className="font-mono text-foreground">Add permissions → Attach policies directly</span>. Attach the policies below.
+              <div className="mt-3 space-y-2">
+                {(Object.values(AWS_POLICIES)).map((p) => {
+                  const isRecommended = recommended.has(p.name as "SecurityAudit" | "ReadOnlyAccess");
+                  return (
+                    <div
+                      key={p.arn}
+                      className={`rounded-md border ${isRecommended ? "border-primary/60 bg-primary/5" : "border-border bg-background/60"} p-3`}
+                    >
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-display font-semibold text-sm">{p.name}</span>
+                          {isRecommended && (
+                            <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary text-primary-foreground">
+                              Recommended
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => copy(p.name, p.name)}>
+                            <Copy className="h-3 w-3" /> Name
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => copy(p.arn, "ARN")}>
+                            <Copy className="h-3 w-3" /> ARN
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="mt-1.5 font-mono text-xs text-muted-foreground break-all">{p.arn}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{p.blurb}</div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="text-xs text-muted-foreground mt-2">
-                Paste each ARN into the policy search box (or use the AWS CLI in step 4). Both are strictly read-only — Trace cannot modify, create, or delete anything in your account.
+
+              <div className="mt-3 rounded-md border border-border bg-background/40 p-3 flex gap-2 text-xs text-muted-foreground">
+                <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                <div>
+                  Can't find <span className="font-mono text-foreground">ReadOnlyAccess</span> or <span className="font-mono text-foreground">SecurityAudit</span> in the picker?
+                  Click <span className="font-mono text-foreground">Filter by Type</span> at the top of the policy list and switch it from
+                  <span className="font-mono text-foreground"> AWS managed</span> to <span className="font-mono text-foreground">All types</span>.
+                  Both policies live under the <span className="font-mono text-foreground">Job function</span> category and are hidden by the default filter.
+                </div>
               </div>
             </li>
             <li>
