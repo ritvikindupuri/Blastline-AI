@@ -6,7 +6,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Plug, CheckCircle2, XCircle, Loader2, Trash2, ShieldCheck, ExternalLink, Eye, EyeOff } from "lucide-react";
+import { Plug, CheckCircle2, XCircle, Loader2, Trash2, ShieldCheck, ExternalLink, Eye, EyeOff, Copy, Info, Filter } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+const AWS_POLICIES = {
+  SecurityAudit: {
+    name: "SecurityAudit",
+    arn: "arn:aws:iam::aws:policy/SecurityAudit",
+    blurb: "Read-only access to security configuration metadata across AWS services.",
+  },
+  ReadOnlyAccess: {
+    name: "ReadOnlyAccess",
+    arn: "arn:aws:iam::aws:policy/ReadOnlyAccess",
+    blurb: "Broader read-only access — required for deep resource enumeration (S3 contents, EC2, Lambda, RDS, etc.).",
+  },
+} as const;
+
+type ServiceKey = "iam" | "s3" | "ec2_lambda" | "rds_dynamodb" | "cloudtrail_guardduty";
+
+const AUDIT_SERVICES: { key: ServiceKey; label: string; needs: ("SecurityAudit" | "ReadOnlyAccess")[] }[] = [
+  { key: "iam", label: "IAM (users, roles, policies)", needs: ["SecurityAudit"] },
+  { key: "cloudtrail_guardduty", label: "CloudTrail & GuardDuty", needs: ["SecurityAudit"] },
+  { key: "s3", label: "S3 (buckets + object-level metadata)", needs: ["SecurityAudit", "ReadOnlyAccess"] },
+  { key: "ec2_lambda", label: "EC2 & Lambda enumeration", needs: ["ReadOnlyAccess"] },
+  { key: "rds_dynamodb", label: "RDS & DynamoDB", needs: ["ReadOnlyAccess"] },
+];
 
 export default function Connections() {
   const { user } = useAuth();
@@ -17,6 +42,22 @@ export default function Connections() {
   const [showSecret, setShowSecret] = useState(false);
   const [region, setRegion] = useState("us-east-1");
   const [verifying, setVerifying] = useState(false);
+  const [enabledServices, setEnabledServices] = useState<Set<ServiceKey>>(
+    new Set<ServiceKey>(["iam", "cloudtrail_guardduty", "s3"]),
+  );
+
+  const recommended = (() => {
+    const set = new Set<"SecurityAudit" | "ReadOnlyAccess">();
+    enabledServices.forEach((s) => {
+      AUDIT_SERVICES.find((x) => x.key === s)?.needs.forEach((n) => set.add(n));
+    });
+    return set;
+  })();
+
+  function copy(text: string, label: string) {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied`);
+  }
 
   async function load() {
     const { data } = await supabase.from("aws_connections").select("*").order("created_at", { ascending: false });
