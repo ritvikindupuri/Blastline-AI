@@ -20,8 +20,12 @@ export default function Landing() {
       <header className="sticky top-0 z-50 bg-background/85 backdrop-blur-md border-b border-border/60">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3">
-            <img src={logo} alt="Trace" width={44} height={44} style={{ height: 44, width: 44 }} />
-            <span className="font-display font-semibold tracking-tight text-2xl">
+            <img
+              src={logo}
+              alt="Trace"
+              className="h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16 lg:h-[72px] lg:w-[72px] transition-all"
+            />
+            <span className="font-display font-semibold tracking-tight text-2xl sm:text-3xl md:text-4xl">
               Trace<span className="text-primary">.</span>
             </span>
           </Link>
@@ -146,8 +150,8 @@ export default function Landing() {
       <footer className="border-t border-border/60">
         <div className="max-w-6xl mx-auto px-6 lg:px-10 py-10 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <img src={logo} alt="Trace" width={32} height={32} style={{ height: 32, width: 32 }} />
-            <span className="font-display font-semibold text-lg">Trace<span className="text-primary">.</span></span>
+            <img src={logo} alt="Trace" className="h-9 w-9 sm:h-10 sm:w-10 md:h-11 md:w-11" />
+            <span className="font-display font-semibold text-lg sm:text-xl">Trace<span className="text-primary">.</span></span>
           </div>
           <div className="text-sm text-muted-foreground">
             © {new Date().getFullYear()} Trace
