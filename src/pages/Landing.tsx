@@ -18,10 +18,10 @@ export default function Landing() {
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-background/85 backdrop-blur-md border-b border-border/60">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3">
-            <img src={logo} alt="Trace" width={44} height={44} style={{ height: 44, width: 44 }} />
-            <span className="font-display font-semibold tracking-tight text-2xl">
+            <img src={logo} alt="Trace" width={56} height={56} style={{ height: 56, width: 56 }} />
+            <span className="font-display font-semibold tracking-tight text-3xl">
               Trace<span className="text-primary">.</span>
             </span>
           </Link>
