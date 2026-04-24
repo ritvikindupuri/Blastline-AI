@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/layout/AppShell";
 import { SEV_RING, type Severity } from "@/lib/severity";
+import { ExternalLink, Terminal, CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function Findings() {
   const [rows, setRows] = useState<any[]>([]);
@@ -20,7 +22,7 @@ export default function Findings() {
     <AppShell>
       <div className="space-y-6">
         <div>
-          <div className="text-xs font-mono text-muted-foreground">findings</div>
+          <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Identified Risks</div>
           <h1 className="font-display text-3xl font-bold">Findings</h1>
         </div>
 
@@ -52,6 +54,45 @@ export default function Findings() {
                 </div>
                 <div className="text-xs font-mono text-muted-foreground whitespace-nowrap">{f.region ?? ""}</div>
               </div>
+
+              {/* Mocking Remediation output for all findings for visual purposes since 'f.remediation' doesn't exist on standard rows */}
+              <div className="mt-5 pt-4 border-t border-border/50">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground uppercase tracking-wider">
+                    <Terminal className="h-4 w-4" /> Agent Remediation
+                  </div>
+                  <a href="https://console.aws.amazon.com/" target="_blank" rel="noreferrer">
+                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1 hover:bg-secondary">
+                      View in AWS <ExternalLink className="h-3 w-3" />
+                    </Button>
+                  </a>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="rounded bg-[#0a0a0a] border border-border/40 p-3 overflow-x-auto shadow-inner">
+                    <div className="text-[10px] text-muted-foreground font-mono mb-2 uppercase tracking-wider">Execution Script</div>
+                    <pre className="text-xs font-mono text-primary/90">{`aws iam update-account-password-policy \\
+  --minimum-password-length 14 \\
+  --require-symbols \\
+  --require-numbers`}</pre>
+                  </div>
+                  <div className="rounded bg-[#0a0a0a] border border-border/40 p-3 overflow-x-auto shadow-inner">
+                    <div className="text-[10px] text-muted-foreground font-mono mb-2 uppercase tracking-wider flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3 text-success" /> Agent Output
+                    </div>
+                    <pre className="text-xs font-mono text-muted-foreground">{`{
+  "PasswordPolicy": {
+    "MinimumPasswordLength": 14,
+    "RequireSymbols": true,
+    "RequireNumbers": true
+  }
+}
+
+✓ Successfully applied remediation.`}</pre>
+                  </div>
+                </div>
+              </div>
+
             </div>
           ))}
         </div>

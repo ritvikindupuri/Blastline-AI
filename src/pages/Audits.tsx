@@ -20,10 +20,10 @@ export default function Audits() {
       <div className="space-y-6">
         <div className="flex items-end justify-between">
           <div>
-            <div className="text-xs font-mono text-muted-foreground">runs</div>
+            <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Execution History</div>
             <h1 className="font-display text-3xl font-bold">Audits</h1>
           </div>
-          <Link to="/audits/new"><Button className="gap-2 shadow-glow"><Plus className="h-4 w-4" /> New audit</Button></Link>
+          <Link to="/audits/new"><Button className="gap-2 shadow-glow"><Plus className="h-4 w-4" /> New Audit</Button></Link>
         </div>
 
         <div className="rounded-xl border border-border bg-card/60 backdrop-blur overflow-hidden shadow-card">

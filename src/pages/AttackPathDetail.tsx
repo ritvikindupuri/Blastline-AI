@@ -27,15 +27,19 @@ export default function AttackPathDetail() {
     const nodes = (g.nodes ?? []).map((n: any, i: number) => ({
       id: String(n.id ?? i),
       data: { label: n.label ?? n.id ?? `node-${i}` },
-      position: n.position ?? { x: i * 220, y: (i % 2) * 120 },
+      position: n.position ?? { x: i * 280, y: (i % 2) * 140 },
       style: {
-        background: "hsl(var(--card))",
-        border: "1px solid hsl(var(--primary) / 0.4)",
+        background: "hsl(var(--secondary) / 0.8)",
+        border: "1px solid hsl(var(--border))",
         color: "hsl(var(--foreground))",
-        borderRadius: 8,
-        padding: 8,
-        fontFamily: "JetBrains Mono, monospace",
-        fontSize: 12,
+        borderRadius: "6px",
+        padding: "12px 16px",
+        fontFamily: "var(--font-mono)",
+        fontSize: "13px",
+        fontWeight: 500,
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)",
+        maxWidth: 200,
+        textAlign: "center" as const,
       },
     }));
     const edges = (g.edges ?? []).map((e: any, i: number) => ({
@@ -45,8 +49,9 @@ export default function AttackPathDetail() {
       label: e.label,
       animated: true,
       markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(var(--primary))" },
-      style: { stroke: "hsl(var(--primary))" },
-      labelStyle: { fill: "hsl(var(--muted-foreground))", fontSize: 10, fontFamily: "JetBrains Mono, monospace" },
+      style: { stroke: "hsl(var(--primary))", strokeWidth: 2, opacity: 0.8 },
+      labelStyle: { fill: "hsl(var(--foreground))", fontWeight: 600, fontSize: 11, fontFamily: "var(--font-mono)", padding: 4 },
+      labelBgStyle: { fill: "hsl(var(--background))", fillOpacity: 0.9, rx: 4 },
     }));
     return { nodes, edges };
   }, [path]);
@@ -57,8 +62,7 @@ export default function AttackPathDetail() {
     <AppShell>
       <div className="space-y-6">
         <div>
-          <Link to="/attack-paths" className="text-xs font-mono text-muted-foreground hover:text-primary">← all paths</Link>
-          <div className="flex items-center gap-3 mt-2">
+          <div className="flex items-center gap-3">
             <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded border ${SEV_RING[path.severity as Severity] ?? ""}`}>{path.severity}</span>
             <h1 className="font-display text-3xl font-bold">{path.title}</h1>
           </div>

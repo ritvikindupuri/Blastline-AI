@@ -11,6 +11,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const syncedTime = useSyncedTime();
   const navigate = useNavigate();
 
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
+
   const items = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/audits", label: "Audits", icon: Activity },
@@ -52,7 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             variant="ghost"
             size="sm"
             className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-            onClick={async () => { await signOut(); navigate("/auth"); }}
+            onClick={handleSignOut}
           >
             <LogOut className="h-4 w-4" /> Sign out
           </Button>

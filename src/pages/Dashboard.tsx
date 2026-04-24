@@ -66,7 +66,7 @@ export default function Dashboard() {
 
         <div className="grid lg:grid-cols-2 gap-4">
           <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-5 shadow-card">
-            <div className="text-xs font-mono text-muted-foreground">severity distribution</div>
+            <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Distribution</div>
             <h3 className="font-display font-semibold mt-1 mb-4">Findings by severity</h3>
             <div className="space-y-2">
               {(["critical", "high", "medium", "low", "info"] as Severity[]).map((s) => {
@@ -87,7 +87,7 @@ export default function Dashboard() {
           </div>
 
           <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-5 shadow-card">
-            <div className="text-xs font-mono text-muted-foreground">recent runs</div>
+            <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Recent Activity</div>
             <h3 className="font-display font-semibold mt-1 mb-4">Recent audits</h3>
             {recent.length === 0 ? (
               <div className="text-sm text-muted-foreground">No audits yet. <Link to="/audits/new" className="text-primary">Start one →</Link></div>
