@@ -21,8 +21,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex">
       <aside className="w-60 border-r border-border bg-sidebar/80 backdrop-blur-xl flex flex-col">
         <Link to="/dashboard" className="flex items-center gap-2.5 px-5 h-16 border-b border-sidebar-border">
-          <img src={logo} alt="Trace" width={32} height={32} style={{ height: 32, width: 32 }} />
-          <div className="font-display font-semibold tracking-tight text-foreground text-lg">
+          <img src={logo} alt="Trace" width={36} height={36} style={{ height: 36, width: 36 }} />
+          <div className="font-display font-semibold tracking-tight text-foreground text-xl">
             Trace<span className="text-primary">.</span>
           </div>
         </Link>
