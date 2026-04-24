@@ -48,7 +48,7 @@ export default function Auth() {
       <div className="absolute inset-0 grid-bg opacity-[0.07]" />
       <div className="relative z-10 w-full max-w-md mx-auto flex flex-col items-center">
         <Link to="/" className="flex items-center justify-center gap-3 mb-10">
-          <img src={logo} alt="Trace" width={56} height={56} style={{ height: 56, width: 56 }} />
+          <img src={logo} alt="Trace" width={48} height={48} style={{ height: 48, width: 48 }} />
           <span className="font-display font-semibold text-3xl tracking-tight">Trace<span className="text-primary">.</span></span>
         </Link>
         <div className="w-full rounded-xl border border-border bg-card/70 backdrop-blur p-6 shadow-card text-center">
