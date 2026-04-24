@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex">
       <aside className="w-60 border-r border-border bg-sidebar/80 backdrop-blur-xl flex flex-col">
         <Link to="/dashboard" className="flex items-center gap-2.5 px-5 h-16 border-b border-sidebar-border">
-          <img src={logo} alt="Trace" width={26} height={26} style={{ height: 26, width: 26 }} />
+          <img src={logo} alt="Trace" width={32} height={32} style={{ height: 32, width: 32 }} />
           <div className="font-display font-semibold tracking-tight text-foreground text-lg">
             Trace<span className="text-primary">.</span>
           </div>
@@ -60,7 +60,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="h-16 border-b border-border flex items-center justify-between px-6 bg-background/60 backdrop-blur-xl">
           <div className="flex items-center gap-3">
             <span className="h-2 w-2 rounded-full bg-success pulse-ring" />
-            <span className="text-xs font-mono text-muted-foreground">SOC // realtime</span>
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">SOC · Realtime</span>
           </div>
           <div className="text-xs font-mono text-muted-foreground">
             {new Date().toUTCString()}
