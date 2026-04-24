@@ -96,25 +96,30 @@ export default function Connections() {
               and click <span className="font-mono text-foreground">Create user</span>.
             </li>
             <li>
-              <span className="font-mono text-primary">[2]</span> Name the user <span className="font-mono text-foreground">trace-auditor</span>. Leave “Provide user access to the AWS Management Console” <span className="font-mono text-foreground">unchecked</span>. Click <span className="font-mono text-foreground">Next</span>.
+              <span className="font-mono text-primary">[2]</span> Name the user <span className="font-mono text-foreground">trace-auditor</span>. Leave “Provide user access to the AWS Management Console” <span className="font-mono text-foreground">unchecked</span>. Click <span className="font-mono text-foreground">Next</span>, then on the permissions screen click <span className="font-mono text-foreground">Next</span> again (skip — we'll attach permissions by ARN after the user exists). Click <span className="font-mono text-foreground">Create user</span>.
             </li>
             <li>
-              <span className="font-mono text-primary">[3]</span> Choose <span className="font-mono text-foreground">Attach policies directly</span>. In the policy filter, switch <span className="font-mono text-foreground">Filter by Type</span> to <span className="font-mono text-foreground">All types</span> (the policies below are <span className="font-mono text-foreground">Job function</span> policies, not service-prefixed AWS-managed ones), then search for and attach both:
-              <div className="mt-2 grid sm:grid-cols-2 gap-2">
-                <div className="rounded-md border border-border bg-background/60 px-3 py-2 font-mono text-xs">SecurityAudit</div>
-                <div className="rounded-md border border-border bg-background/60 px-3 py-2 font-mono text-xs">ReadOnlyAccess</div>
+              <span className="font-mono text-primary">[3]</span> Open the new <span className="font-mono text-foreground">trace-auditor</span> user, go to the <span className="font-mono text-foreground">Permissions</span> tab and choose <span className="font-mono text-foreground">Add permissions → Attach policies directly</span>. Trace requires these two AWS-managed policy ARNs:
+              <div className="mt-2 space-y-2">
+                <div className="rounded-md border border-border bg-background/60 px-3 py-2 font-mono text-xs break-all">arn:aws:iam::aws:policy/SecurityAudit</div>
+                <div className="rounded-md border border-border bg-background/60 px-3 py-2 font-mono text-xs break-all">arn:aws:iam::aws:policy/ReadOnlyAccess</div>
               </div>
               <div className="text-xs text-muted-foreground mt-2">
-                Both are AWS-managed and strictly read-only. Trace cannot modify, create, or delete anything in your account. ARNs:
-                <span className="font-mono"> arn:aws:iam::aws:policy/SecurityAudit</span> ·
-                <span className="font-mono"> arn:aws:iam::aws:policy/ReadOnlyAccess</span>
+                Paste each ARN into the policy search box (or use the AWS CLI in step 4). Both are strictly read-only — Trace cannot modify, create, or delete anything in your account.
               </div>
             </li>
             <li>
-              <span className="font-mono text-primary">[4]</span> Finish creating the user. Open it, go to <span className="font-mono text-foreground">Security credentials → Access keys → Create access key</span>. Choose <span className="font-mono text-foreground">Third-party service</span>, then <span className="font-mono text-foreground">Create</span>.
+              <span className="font-mono text-primary">[4]</span> <span className="text-muted-foreground">(Faster, optional)</span> Or attach both ARNs from the AWS CLI:
+              <pre className="mt-2 rounded-md border border-border bg-background/60 p-3 font-mono text-xs overflow-x-auto whitespace-pre">{`aws iam attach-user-policy --user-name trace-auditor \\
+  --policy-arn arn:aws:iam::aws:policy/SecurityAudit
+aws iam attach-user-policy --user-name trace-auditor \\
+  --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess`}</pre>
             </li>
             <li>
-              <span className="font-mono text-primary">[5]</span> Copy the <span className="font-mono text-foreground">Access key ID</span> and <span className="font-mono text-foreground">Secret access key</span> and paste them below.
+              <span className="font-mono text-primary">[5]</span> On the user, go to <span className="font-mono text-foreground">Security credentials → Access keys → Create access key</span>. Choose <span className="font-mono text-foreground">Third-party service</span>, then <span className="font-mono text-foreground">Create</span>.
+            </li>
+            <li>
+              <span className="font-mono text-primary">[6]</span> Copy the <span className="font-mono text-foreground">Access key ID</span> and <span className="font-mono text-foreground">Secret access key</span> and paste them below.
             </li>
           </ol>
 
