@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { motion } from "framer-motion";
 import logo from "@/assets/trace-logo.png";
 
 const agents = [
@@ -19,7 +20,7 @@ export default function Landing() {
       <header className="sticky top-0 z-50 bg-background/85 backdrop-blur-md border-b border-border/60">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5">
-            <img src={logo} alt="Trace" width={28} height={28} style={{ height: 28, width: 28 }} />
+            <img src={logo} alt="Trace" width={48} height={48} style={{ height: 48, width: 48 }} />
             <span className="font-display font-semibold tracking-tight text-xl">
               Trace<span className="text-primary">.</span>
             </span>
@@ -41,9 +42,14 @@ export default function Landing() {
 
       {/* Hero */}
       <section className="max-w-7xl mx-auto px-6 lg:px-10 pt-24 md:pt-32 pb-32">
-        <div className="max-w-4xl">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="max-w-4xl"
+        >
           <div className="text-xs font-mono text-primary uppercase tracking-[0.2em] mb-6">
-            // AWS security auditor
+            AWS security auditor
           </div>
           <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-semibold leading-[1.05] tracking-tight">
             Trace every path<br />
@@ -73,7 +79,7 @@ export default function Landing() {
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
       </section>
 
       {/* Divider */}
@@ -83,9 +89,15 @@ export default function Landing() {
 
       {/* Agents */}
       <section id="agents" className="max-w-7xl mx-auto px-6 lg:px-10 py-24">
-        <div className="grid md:grid-cols-12 gap-8 md:gap-12 mb-16">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="grid md:grid-cols-12 gap-8 md:gap-12 mb-16"
+        >
           <div className="md:col-span-5">
-            <div className="text-xs font-mono text-primary uppercase tracking-[0.2em] mb-4">// the agents</div>
+            <div className="text-xs font-mono text-primary uppercase tracking-[0.2em] mb-4">the agents</div>
             <h2 className="font-display text-3xl md:text-4xl font-semibold tracking-tight leading-tight">
               Six agents.<br />One verdict.
             </h2>
@@ -94,26 +106,39 @@ export default function Landing() {
             Each agent owns one phase of the audit and writes its findings to a shared evidence graph.
             The Critic agent reviews the full chain before anything reaches your dashboard.
           </p>
-        </div>
+        </motion.div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-px bg-border/60 border border-border/60 rounded-lg overflow-hidden">
-          {agents.map((a) => (
-            <div key={a.name} className="group bg-background hover:bg-card transition-colors p-7">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+          className="grid md:grid-cols-2 lg:grid-cols-3 gap-px bg-border/60 border border-border/60 rounded-lg overflow-hidden"
+        >
+          {agents.map((a, i) => (
+            <motion.div
+              key={a.name}
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.3 + (i * 0.1) }}
+              className="group bg-background hover:bg-card transition-colors p-7"
+            >
               <div className="flex items-baseline gap-3 mb-4">
                 <span className="font-mono text-xs text-primary tracking-wider">{a.num}</span>
                 <span className="font-display font-semibold text-lg tracking-tight">{a.name}</span>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">{a.desc}</p>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* Footer */}
       <footer className="border-t border-border/60">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-10 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <img src={logo} alt="Trace" width={20} height={20} style={{ height: 20, width: 20 }} className="opacity-80" />
+            <img src={logo} alt="Trace" width={28} height={28} style={{ height: 28, width: 28 }} className="opacity-80" />
             <span className="font-display font-semibold text-sm">Trace<span className="text-primary">.</span></span>
           </div>
           <div className="text-xs text-muted-foreground font-mono">

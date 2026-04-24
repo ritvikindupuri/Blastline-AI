@@ -74,7 +74,7 @@ export default function Connections() {
     <AppShell>
       <div className="space-y-6 max-w-5xl">
         <div>
-          <div className="text-xs font-mono text-muted-foreground">// configure access</div>
+          <div className="text-xs font-mono text-muted-foreground">configure access</div>
           <h1 className="font-display text-3xl font-bold">AWS Accounts</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Connect an AWS account using an IAM user's access key + secret. Trace only needs read-only permissions to audit your posture.

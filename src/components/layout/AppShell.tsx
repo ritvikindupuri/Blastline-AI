@@ -1,12 +1,14 @@
 import { ReactNode } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
+import { useSyncedTime } from "@/lib/time";
 import { LayoutDashboard, Plug, Activity, FileSearch, LogOut, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/trace-logo.png";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();
+  const syncedTime = useSyncedTime();
   const navigate = useNavigate();
 
   const items = [
@@ -60,10 +62,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="h-16 border-b border-border flex items-center justify-between px-6 bg-background/60 backdrop-blur-xl">
           <div className="flex items-center gap-3">
             <span className="h-2 w-2 rounded-full bg-success pulse-ring" />
-            <span className="text-xs font-mono text-muted-foreground">SOC // realtime</span>
           </div>
           <div className="text-xs font-mono text-muted-foreground">
-            {new Date().toUTCString()}
+            {syncedTime.toUTCString()}
           </div>
         </div>
         <div className="p-6">{children}</div>

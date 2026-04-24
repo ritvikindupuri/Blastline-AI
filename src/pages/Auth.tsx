@@ -48,29 +48,31 @@ export default function Auth() {
       <div className="absolute inset-0 grid-bg opacity-[0.07]" />
       <div className="relative z-10 w-full max-w-md">
         <Link to="/" className="flex items-center justify-center gap-3 mb-10">
-          <img src={logo} alt="Trace" width={40} height={40} style={{ height: 40, width: 40 }} />
+          <img src={logo} alt="Trace" width={64} height={64} style={{ height: 64, width: 64 }} />
           <span className="font-display font-semibold text-2xl tracking-tight">Trace<span className="text-primary">.</span></span>
         </Link>
         <div className="rounded-xl border border-border bg-card/70 backdrop-blur p-6 shadow-card">
-          <div className="text-xs font-mono text-muted-foreground">// {mode === "signin" ? "authenticate" : "provision operator"}</div>
-          <h1 className="font-display text-2xl font-bold mt-1">{mode === "signin" ? "Sign in" : "Create account"}</h1>
-          <form onSubmit={submit} className="mt-5 space-y-4">
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="font-mono" />
-            </div>
-            <div>
-              <Label htmlFor="pwd">Password</Label>
-              <Input id="pwd" type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="font-mono" />
-            </div>
-            <Button type="submit" disabled={loading} className="w-full gap-2 shadow-glow">
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {mode === "signin" ? "Sign in" : "Sign up"}
-            </Button>
-          </form>
+          <div className="text-center">
+            <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider">{mode === "signin" ? "authenticate" : "provision operator"}</div>
+            <h1 className="font-display text-2xl font-bold mt-1">{mode === "signin" ? "Sign in" : "Create account"}</h1>
+            <form onSubmit={submit} className="mt-5 space-y-4">
+              <div className="flex flex-col items-center">
+                <Label htmlFor="email" className="self-center">Email</Label>
+                <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="font-mono text-center mt-1" />
+              </div>
+              <div className="flex flex-col items-center">
+                <Label htmlFor="pwd" className="self-center">Password</Label>
+                <Input id="pwd" type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="font-mono text-center mt-1" />
+              </div>
+              <Button type="submit" disabled={loading} className="w-full gap-2 shadow-glow justify-center mt-2">
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {mode === "signin" ? "Sign in" : "Sign up"}
+              </Button>
+            </form>
+          </div>
           <button onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-            className="mt-4 text-xs font-mono text-muted-foreground hover:text-primary w-full text-center">
-            {mode === "signin" ? "// no account? sign up" : "// have an account? sign in"}
+            className="mt-4 text-xs font-mono text-muted-foreground hover:text-primary w-full text-center uppercase tracking-wider">
+            {mode === "signin" ? "no account? sign up" : "have an account? sign in"}
           </button>
         </div>
       </div>

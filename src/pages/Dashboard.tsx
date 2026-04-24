@@ -5,6 +5,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Plus, Activity, ShieldAlert, Network, Plug } from "lucide-react";
 import { SEV_DOT, type Severity } from "@/lib/severity";
+import { formatSyncedDate } from "@/lib/time";
 
 export default function Dashboard() {
   const [stats, setStats] = useState({ audits: 0, findings: 0, paths: 0, conns: 0 });
@@ -45,7 +46,7 @@ export default function Dashboard() {
       <div className="space-y-6">
         <div className="flex items-end justify-between">
           <div>
-            <div className="text-xs font-mono text-muted-foreground">// command center</div>
+            <div className="text-xs font-mono text-muted-foreground">command center</div>
             <h1 className="font-display text-3xl font-bold">Dashboard</h1>
           </div>
           <Link to="/audits/new"><Button className="gap-2 shadow-glow"><Plus className="h-4 w-4" /> New audit</Button></Link>
@@ -65,7 +66,7 @@ export default function Dashboard() {
 
         <div className="grid lg:grid-cols-2 gap-4">
           <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-5 shadow-card">
-            <div className="text-xs font-mono text-muted-foreground">// severity distribution</div>
+            <div className="text-xs font-mono text-muted-foreground">severity distribution</div>
             <h3 className="font-display font-semibold mt-1 mb-4">Findings by severity</h3>
             <div className="space-y-2">
               {(["critical", "high", "medium", "low", "info"] as Severity[]).map((s) => {
@@ -86,7 +87,7 @@ export default function Dashboard() {
           </div>
 
           <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-5 shadow-card">
-            <div className="text-xs font-mono text-muted-foreground">// recent runs</div>
+            <div className="text-xs font-mono text-muted-foreground">recent runs</div>
             <h3 className="font-display font-semibold mt-1 mb-4">Recent audits</h3>
             {recent.length === 0 ? (
               <div className="text-sm text-muted-foreground">No audits yet. <Link to="/audits/new" className="text-primary">Start one →</Link></div>
@@ -96,7 +97,7 @@ export default function Dashboard() {
                   <Link key={a.id} to={`/audits/${a.id}`} className="flex items-center justify-between rounded-md border border-border bg-background/50 p-3 hover:border-primary/40">
                     <div>
                       <div className="text-sm font-mono">{a.id.slice(0, 8)}</div>
-                      <div className="text-xs text-muted-foreground">{new Date(a.created_at).toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">{formatSyncedDate(a.created_at)}</div>
                     </div>
                     <span className={`text-xs font-mono px-2 py-0.5 rounded border ${
                       a.status === "completed" ? "text-success border-success/30 bg-success/10" :

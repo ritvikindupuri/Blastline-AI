@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { formatSyncedDate } from "@/lib/time";
 
 export default function Audits() {
   const [rows, setRows] = useState<any[]>([]);
@@ -19,7 +20,7 @@ export default function Audits() {
       <div className="space-y-6">
         <div className="flex items-end justify-between">
           <div>
-            <div className="text-xs font-mono text-muted-foreground">// runs</div>
+            <div className="text-xs font-mono text-muted-foreground">runs</div>
             <h1 className="font-display text-3xl font-bold">Audits</h1>
           </div>
           <Link to="/audits/new"><Button className="gap-2 shadow-glow"><Plus className="h-4 w-4" /> New audit</Button></Link>
@@ -50,7 +51,7 @@ export default function Audits() {
                       "text-primary border-primary/30 bg-primary/10"
                     }`}>{a.status}</span>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{new Date(a.started_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{formatSyncedDate(a.started_at)}</td>
                   <td className="px-4 py-3 font-mono">{(a.summary as any)?.total ?? "—"}</td>
                   <td className="px-4 py-3 text-right">
                     <Link to={`/audits/${a.id}`}><Button size="sm" variant="outline">View</Button></Link>
