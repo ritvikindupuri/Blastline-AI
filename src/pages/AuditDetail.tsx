@@ -50,7 +50,7 @@ export default function AuditDetail() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-xs font-mono text-muted-foreground">// audit {id?.slice(0, 8)}</div>
+            <div className="text-xs font-mono text-muted-foreground">Audit {id?.slice(0, 8)}</div>
             <h1 className="font-display text-3xl font-bold flex items-center gap-3">
               Audit run
               {running && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
@@ -68,7 +68,7 @@ export default function AuditDetail() {
         <div className="grid lg:grid-cols-5 gap-4">
           <div className="lg:col-span-3 rounded-xl border border-border bg-card/60 backdrop-blur shadow-card overflow-hidden">
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-              <div className="text-xs font-mono text-muted-foreground">// agent transcript</div>
+              <div className="text-xs font-mono text-muted-foreground">Agent transcript</div>
               <div className="text-xs font-mono text-muted-foreground">{transcripts.length} events</div>
             </div>
             <div ref={scrollRef} className="max-h-[60vh] overflow-y-auto p-4 space-y-3 font-mono text-xs">
@@ -90,7 +90,7 @@ export default function AuditDetail() {
 
           <div className="lg:col-span-2 space-y-4">
             <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-4 shadow-card">
-              <div className="text-xs font-mono text-muted-foreground">// summary</div>
+              <div className="text-xs font-mono text-muted-foreground">Summary</div>
               <div className="mt-2 grid grid-cols-3 gap-3 text-center">
                 {(["critical", "high", "medium"] as Severity[]).map((s) => {
                   const v = findings.filter((f) => f.severity === s).length;
@@ -105,7 +105,7 @@ export default function AuditDetail() {
             </div>
 
             <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-4 shadow-card">
-              <div className="text-xs font-mono text-muted-foreground">// attack paths</div>
+              <div className="text-xs font-mono text-muted-foreground">Attack paths</div>
               <div className="mt-2 space-y-2">
                 {paths.length === 0 && <div className="text-sm text-muted-foreground">none yet</div>}
                 {paths.map((p) => (

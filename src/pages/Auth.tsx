@@ -44,22 +44,24 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-screen grid place-items-center px-4 relative">
+    <div className="min-h-screen flex items-center justify-center px-4 relative">
       <div className="absolute inset-0 grid-bg opacity-[0.07]" />
-      <div className="relative z-10 w-full max-w-md">
+      <div className="relative z-10 w-full max-w-md mx-auto flex flex-col items-center">
         <Link to="/" className="flex items-center justify-center gap-3 mb-10">
-          <img src={logo} alt="Trace" width={40} height={40} style={{ height: 40, width: 40 }} />
-          <span className="font-display font-semibold text-2xl tracking-tight">Trace<span className="text-primary">.</span></span>
+          <img src={logo} alt="Trace" width={56} height={56} style={{ height: 56, width: 56 }} />
+          <span className="font-display font-semibold text-3xl tracking-tight">Trace<span className="text-primary">.</span></span>
         </Link>
-        <div className="rounded-xl border border-border bg-card/70 backdrop-blur p-6 shadow-card">
-          <div className="text-xs font-mono text-muted-foreground">// {mode === "signin" ? "authenticate" : "provision operator"}</div>
+        <div className="w-full rounded-xl border border-border bg-card/70 backdrop-blur p-6 shadow-card text-center">
+          <div className="text-xs font-mono text-muted-foreground uppercase tracking-[0.18em]">
+            {mode === "signin" ? "Authenticate" : "Create account"}
+          </div>
           <h1 className="font-display text-2xl font-bold mt-1">{mode === "signin" ? "Sign in" : "Create account"}</h1>
           <form onSubmit={submit} className="mt-5 space-y-4">
-            <div>
+            <div className="text-left">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="font-mono" />
             </div>
-            <div>
+            <div className="text-left">
               <Label htmlFor="pwd">Password</Label>
               <Input id="pwd" type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="font-mono" />
             </div>
@@ -70,7 +72,7 @@ export default function Auth() {
           </form>
           <button onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
             className="mt-4 text-xs font-mono text-muted-foreground hover:text-primary w-full text-center">
-            {mode === "signin" ? "// no account? sign up" : "// have an account? sign in"}
+            {mode === "signin" ? "No account? Sign up" : "Have an account? Sign in"}
           </button>
         </div>
       </div>
