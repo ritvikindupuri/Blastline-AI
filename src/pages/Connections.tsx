@@ -99,12 +99,16 @@ export default function Connections() {
               <span className="font-mono text-primary">[2]</span> Name the user <span className="font-mono text-foreground">trace-auditor</span>. Leave “Provide user access to the AWS Management Console” <span className="font-mono text-foreground">unchecked</span>. Click <span className="font-mono text-foreground">Next</span>.
             </li>
             <li>
-              <span className="font-mono text-primary">[3]</span> Choose <span className="font-mono text-foreground">Attach policies directly</span> and attach these two AWS-managed policies:
+              <span className="font-mono text-primary">[3]</span> Choose <span className="font-mono text-foreground">Attach policies directly</span>. In the policy filter, switch <span className="font-mono text-foreground">Filter by Type</span> to <span className="font-mono text-foreground">All types</span> (the policies below are <span className="font-mono text-foreground">Job function</span> policies, not service-prefixed AWS-managed ones), then search for and attach both:
               <div className="mt-2 grid sm:grid-cols-2 gap-2">
                 <div className="rounded-md border border-border bg-background/60 px-3 py-2 font-mono text-xs">SecurityAudit</div>
                 <div className="rounded-md border border-border bg-background/60 px-3 py-2 font-mono text-xs">ReadOnlyAccess</div>
               </div>
-              <div className="text-xs text-muted-foreground mt-2">Both are read-only. Trace cannot modify, create, or delete anything in your account.</div>
+              <div className="text-xs text-muted-foreground mt-2">
+                Both are AWS-managed and strictly read-only. Trace cannot modify, create, or delete anything in your account. ARNs:
+                <span className="font-mono"> arn:aws:iam::aws:policy/SecurityAudit</span> ·
+                <span className="font-mono"> arn:aws:iam::aws:policy/ReadOnlyAccess</span>
+              </div>
             </li>
             <li>
               <span className="font-mono text-primary">[4]</span> Finish creating the user. Open it, go to <span className="font-mono text-foreground">Security credentials → Access keys → Create access key</span>. Choose <span className="font-mono text-foreground">Third-party service</span>, then <span className="font-mono text-foreground">Create</span>.
