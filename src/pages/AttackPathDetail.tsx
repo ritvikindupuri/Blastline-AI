@@ -4,11 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/layout/AppShell";
 import { SEV_RING, type Severity } from "@/lib/severity";
 import { Button } from "@/components/ui/button";
-import ReactFlow, { Background, Controls, MarkerType, MiniMap, type NodeProps } from "reactflow";
+import ReactFlow, { Background, Controls, Handle, MarkerType, MiniMap, Position, type NodeProps } from "reactflow";
 import { ExternalLink, GitBranch, ShieldCheck, Terminal } from "lucide-react";
 import "reactflow/dist/style.css";
 
-type GraphNodeData = { label: string; kind?: string };
+type GraphNodeData = { label: string; kind?: string; index?: number; active?: boolean; dimmed?: boolean };
 
 const awsConsoleFor = (finding?: any, remediation?: any) => {
   if (remediation?.aws_console_url) return remediation.aws_console_url;
@@ -26,9 +26,30 @@ const awsConsoleFor = (finding?: any, remediation?: any) => {
 
 function AttackNode({ data, selected }: NodeProps<GraphNodeData>) {
   return (
-    <div className={`w-[250px] rounded-md border bg-card px-3.5 py-3 shadow-card transition-colors ${selected ? "border-primary" : "border-primary/50"}`}>
-      <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-primary">
-        <GitBranch className="h-3 w-3" /> Attack step
+    <div
+      className={`relative w-[270px] rounded-md border bg-card px-4 py-3.5 shadow-card transition-all duration-200 ${
+        selected || data.active
+          ? "border-primary ring-2 ring-primary/30 shadow-glow"
+          : data.dimmed
+            ? "border-border opacity-45"
+            : "border-primary/50 hover:border-primary/80"
+      }`}
+    >
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!h-3 !w-3 !border !border-primary !bg-background"
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!h-3 !w-3 !border !border-primary !bg-primary"
+      />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-primary">
+          <GitBranch className="h-3 w-3" /> Step {String((data.index ?? 0) + 1).padStart(2, "0")}
+        </div>
+        <span className="h-2 w-2 rounded-full bg-primary" />
       </div>
       <div className="mt-2 whitespace-normal break-words font-mono text-[13px] leading-relaxed text-foreground">
         {data.label}
@@ -44,6 +65,8 @@ export default function AttackPathDetail() {
   const [path, setPath] = useState<any>(null);
   const [findings, setFindings] = useState<any[]>([]);
   const [remediations, setRemediations] = useState<any[]>([]);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -67,27 +90,65 @@ export default function AttackPathDetail() {
 
   const { nodes, edges } = useMemo(() => {
     const g = (path?.graph as any) ?? { nodes: [], edges: [] };
-    const nodes = (g.nodes ?? []).map((n: any, i: number) => ({
-      id: String(n.id ?? i),
-      type: "attackNode",
-      data: { label: n.label ?? n.id ?? `node-${i}`, kind: n.kind },
-      position: n.position ?? { x: i * 310, y: (i % 2) * 165 },
-    }));
-    const edges = (g.edges ?? []).map((e: any, i: number) => ({
-      id: String(e.id ?? i),
-      source: String(e.source),
-      target: String(e.target),
-      label: e.label,
-      animated: true,
-      markerEnd: { type: MarkerType.ArrowClosed, color: "hsl(var(--primary))" },
-      style: { stroke: "hsl(var(--primary))", strokeWidth: 2 },
-      labelBgPadding: [8, 4] as [number, number],
-      labelBgBorderRadius: 6,
-      labelBgStyle: { fill: "hsl(var(--background))", fillOpacity: 0.96 },
-      labelStyle: { fill: "hsl(var(--foreground))", fontSize: 11, fontFamily: "JetBrains Mono, monospace", fontWeight: 600 },
-    }));
+    const rawEdges = g.edges ?? [];
+    const activeNodeIds = new Set<string>();
+    const activeEdgeIds = new Set<string>();
+
+    if (hoveredEdgeId) {
+      const edge = rawEdges.find((e: any, i: number) => String(e.id ?? i) === hoveredEdgeId);
+      if (edge) {
+        activeEdgeIds.add(hoveredEdgeId);
+        activeNodeIds.add(String(edge.source));
+        activeNodeIds.add(String(edge.target));
+      }
+    }
+
+    if (hoveredNodeId) {
+      activeNodeIds.add(hoveredNodeId);
+      rawEdges.forEach((e: any, i: number) => {
+        if (String(e.source) === hoveredNodeId || String(e.target) === hoveredNodeId) {
+          activeEdgeIds.add(String(e.id ?? i));
+          activeNodeIds.add(String(e.source));
+          activeNodeIds.add(String(e.target));
+        }
+      });
+    }
+
+    const hasHover = Boolean(hoveredNodeId || hoveredEdgeId);
+    const nodes = (g.nodes ?? []).map((n: any, i: number) => {
+      const nodeId = String(n.id ?? i);
+      const active = activeNodeIds.has(nodeId);
+      return {
+        id: nodeId,
+        type: "attackNode",
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
+        data: { label: n.label ?? n.id ?? `node-${i}`, kind: n.kind, index: i, active, dimmed: hasHover && !active },
+        position: n.position ?? { x: i * 330, y: (i % 2) * 175 },
+      };
+    });
+    const edges = rawEdges.map((e: any, i: number) => {
+      const edgeId = String(e.id ?? i);
+      const active = activeEdgeIds.has(edgeId);
+      const dimmed = hasHover && !active;
+      return {
+        id: edgeId,
+        source: String(e.source),
+        target: String(e.target),
+        label: e.label,
+        type: "smoothstep",
+        animated: active || !hasHover,
+        interactionWidth: 28,
+        markerEnd: { type: MarkerType.ArrowClosed, color: active ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))", width: 22, height: 22 },
+        style: { stroke: active ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))", strokeWidth: active ? 4 : 2.5, opacity: dimmed ? 0.28 : 1 },
+        labelBgPadding: [10, 5] as [number, number],
+        labelBgBorderRadius: 6,
+        labelBgStyle: { fill: "hsl(var(--background))", fillOpacity: active ? 1 : 0.92 },
+        labelStyle: { fill: active ? "hsl(var(--primary))" : "hsl(var(--foreground))", fontSize: 11, fontFamily: "JetBrains Mono, monospace", fontWeight: 700 },
+      };
+    });
     return { nodes, edges };
-  }, [path]);
+  }, [path, hoveredNodeId, hoveredEdgeId]);
 
   if (!path) return <AppShell><div className="text-muted-foreground">Loading…</div></AppShell>;
 
@@ -114,12 +175,29 @@ export default function AttackPathDetail() {
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div>
               <div className="text-xs font-mono uppercase tracking-wider text-primary">Interactive attack graph</div>
-              <div className="text-xs text-muted-foreground">Drag nodes, zoom, pan, and select steps to inspect the chain.</div>
+              <div className="text-xs text-muted-foreground">Hover nodes or arrows to isolate the linked attack segment; drag, zoom, and pan to inspect the chain.</div>
             </div>
             <GitBranch className="h-5 w-5 text-primary" />
           </div>
           <div className="h-[620px] bg-background/50">
-            <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.25 }} minZoom={0.25} maxZoom={1.8} proOptions={{ hideAttribution: true }}>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              fitView
+              fitViewOptions={{ padding: 0.28, duration: 700 }}
+              minZoom={0.2}
+              maxZoom={2}
+              panOnScroll
+              zoomOnPinch
+              zoomOnDoubleClick
+              connectionLineStyle={{ stroke: "hsl(var(--primary))", strokeWidth: 2 }}
+              proOptions={{ hideAttribution: true }}
+              onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
+              onNodeMouseLeave={() => setHoveredNodeId(null)}
+              onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
+              onEdgeMouseLeave={() => setHoveredEdgeId(null)}
+            >
               <Background color="hsl(var(--border))" gap={22} size={1} />
               <MiniMap className="!bg-card !border !border-border" nodeColor="hsl(var(--primary))" maskColor="hsl(var(--background) / 0.72)" />
               <Controls className="!bg-card !border-border" />
@@ -139,7 +217,7 @@ export default function AttackPathDetail() {
             <h3 className="font-display text-xl font-semibold mb-3">Chained findings ({findings.length})</h3>
             <div className="space-y-2">
               {findings.map((f) => (
-                <div key={f.id} className="rounded-lg border border-border bg-card/60 p-4 shadow-card">
+                <div id={`finding-${f.id}`} key={f.id} className="rounded-lg border border-border bg-card/60 p-4 shadow-card scroll-mt-24">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded border ${SEV_RING[f.severity as Severity] ?? ""}`}>{f.severity}</span>
                     <span className="text-xs font-mono text-muted-foreground">{f.service} · {f.check_id}</span>
@@ -157,6 +235,10 @@ export default function AttackPathDetail() {
               {remediations.length === 0 && <div className="rounded-lg border border-border bg-card/60 p-4 text-sm text-muted-foreground">No remediation execution evidence has been recorded for this path.</div>}
               {remediations.map((r) => {
                 const finding = findings.find((f) => f.id === r.finding_id);
+                const sourceNode = nodes.find((node) => {
+                  const label = String(node.data?.label ?? "").toLowerCase();
+                  return label.includes(String(finding?.check_id ?? "").toLowerCase()) || label.includes(String(finding?.service ?? "").toLowerCase());
+                });
                 const changes = r.aws_changes ?? { status: r.execution_status ?? "not_applied", resource: finding?.resource_arn ?? "pending", result: r.applied ? "Remediation marked applied" : "Awaiting approval or execution" };
                 return (
                   <div key={r.id} className="rounded-lg border border-border bg-card/60 p-4 shadow-card">
@@ -165,6 +247,20 @@ export default function AttackPathDetail() {
                         <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-primary"><Terminal className="h-4 w-4" /> {r.fix_type} · {r.execution_status ?? "not_applied"}</div>
                         <div className="mt-2 font-medium">{r.title}</div>
                         {r.description && <div className="mt-1 text-sm text-muted-foreground">{r.description}</div>}
+                        <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                          <a className="rounded border border-border bg-background/60 px-2 py-1 hover:border-primary hover:text-primary" href={`#finding-${finding?.id ?? ""}`}>Source finding: {finding?.service ?? "AWS"} · {finding?.check_id ?? "unknown"}</a>
+                          <span className="rounded border border-border bg-background/60 px-2 py-1">Path: {path.title}</span>
+                          {sourceNode && (
+                            <button
+                              className="rounded border border-border bg-background/60 px-2 py-1 hover:border-primary hover:text-primary"
+                              onMouseEnter={() => setHoveredNodeId(sourceNode.id)}
+                              onMouseLeave={() => setHoveredNodeId(null)}
+                              type="button"
+                            >
+                              Component: graph step {String((sourceNode.data?.index ?? 0) + 1).padStart(2, "0")}
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <Button asChild size="sm" variant="outline" className="gap-2 border-border bg-transparent hover:bg-secondary">
                         <a href={awsConsoleFor(finding, r)} target="_blank" rel="noreferrer">Review in AWS <ExternalLink className="h-3.5 w-3.5" /></a>
