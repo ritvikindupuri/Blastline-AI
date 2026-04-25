@@ -3,7 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/layout/AppShell";
 import { AGENT_META, SEV_RING, type Severity } from "@/lib/severity";
-import { Loader2, CheckCircle2, XCircle, Network as NetIcon } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Network as NetIcon, ExternalLink, Terminal } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function AuditDetail() {
   const { id } = useParams();
@@ -11,6 +12,7 @@ export default function AuditDetail() {
   const [transcripts, setTranscripts] = useState<any[]>([]);
   const [findings, setFindings] = useState<any[]>([]);
   const [paths, setPaths] = useState<any[]>([]);
+  const [remediations, setRemediations] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   async function reload() {
@@ -24,6 +26,12 @@ export default function AuditDetail() {
     setTranscripts(t.data ?? []);
     setFindings(f.data ?? []);
     setPaths(p.data ?? []);
+    if (f.data?.length) {
+      const { data: r } = await supabase.from("remediations").select("*").in("finding_id", f.data.map((row) => row.id)).order("created_at", { ascending: false });
+      setRemediations(r ?? []);
+    } else {
+      setRemediations([]);
+    }
   }
 
   useEffect(() => {
@@ -135,6 +143,33 @@ export default function AuditDetail() {
                 {f.resource_arn && <div className="mt-2 text-xs font-mono text-muted-foreground truncate">{f.resource_arn}</div>}
               </div>
             ))}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="font-display font-semibold mb-3">Remediation evidence ({remediations.length})</h3>
+          <div className="grid xl:grid-cols-2 gap-3">
+            {remediations.length === 0 && <div className="text-sm text-muted-foreground">No remediation scripts generated yet.</div>}
+            {remediations.map((r) => {
+              const finding = findings.find((f) => f.id === r.finding_id);
+              const region = finding?.region || "us-east-1";
+              const awsUrl = r.aws_console_url || (finding?.service === "iam" ? "https://console.aws.amazon.com/iam/home" : `https://${region}.console.aws.amazon.com/console/home?region=${region}`);
+              return (
+                <div key={r.id} className="rounded-xl border border-border bg-card/60 backdrop-blur p-4 shadow-card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-primary"><Terminal className="h-4 w-4" /> {r.fix_type} · {r.execution_status ?? "not_applied"}</div>
+                      <div className="mt-2 font-medium">{r.title}</div>
+                    </div>
+                    <Button asChild size="sm" variant="outline" className="gap-2 border-border bg-transparent hover:bg-secondary">
+                      <a href={awsUrl} target="_blank" rel="noreferrer">Review in AWS <ExternalLink className="h-3.5 w-3.5" /></a>
+                    </Button>
+                  </div>
+                  <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.executed_script || r.snippet}</pre>
+                  <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.execution_output || "Not executed from Trace yet."}</pre>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
