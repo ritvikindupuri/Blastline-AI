@@ -5,12 +5,12 @@ import { motion } from "framer-motion";
 import logo from "@/assets/trace-logo.png";
 
 const agents = [
-  { num: "01", name: "Recon", desc: "Enumerates IAM, S3, EC2, Lambda, RDS, CloudTrail and GuardDuty across every region." },
-  { num: "02", name: "Misconfig", desc: "Runs CIS AWS Foundations and NIST 800-53 checks against the recon graph." },
-  { num: "03", name: "Trace", desc: "Chains findings into the exact privilege-escalation sequences an attacker would walk." },
-  { num: "04", name: "Blast Radius", desc: "Quantifies impact — affected resources, data classes, and business tier." },
-  { num: "05", name: "Remediate", desc: "Emits Terraform modules and AWS CLI commands for every finding." },
-  { num: "06", name: "Critic", desc: "An adversarial agent challenges every finding to eliminate false positives." },
+  { num: "01", name: "Recon", role: "Inventory", desc: "Maps IAM, S3, EC2, Lambda, RDS, CloudTrail and GuardDuty into a normalized account graph." },
+  { num: "02", name: "Misconfig", role: "Controls", desc: "Evaluates high-signal CIS, NIST and MITRE-aligned checks against live AWS configuration." },
+  { num: "03", name: "Trace", role: "Attack graph", desc: "Links isolated issues into realistic privilege escalation, exposure and lateral movement paths." },
+  { num: "04", name: "Blast Radius", role: "Impact", desc: "Ranks what is reachable, which resources are exposed, and what business risk the chain creates." },
+  { num: "05", name: "Remediate", role: "Fix evidence", desc: "Generates exact Terraform or AWS CLI changes and records script, output and post-change evidence." },
+  { num: "06", name: "Critic", role: "Validation", desc: "Challenges every finding and remediation so analysts see confirmed risk, not noisy scanner output." },
 ];
 
 export default function Landing() {
@@ -121,8 +121,8 @@ export default function Landing() {
             </h2>
           </div>
           <p className="md:col-span-6 md:col-start-7 text-lg text-muted-foreground leading-relaxed self-end">
-            Each agent owns one phase of the audit. The Critic reviews the full chain
-            before anything reaches your dashboard.
+            Trace runs a focused agent pipeline: collect AWS state, validate risk,
+            build attack paths, quantify impact, and produce auditable remediation evidence.
           </p>
         </div>
 
@@ -140,6 +140,7 @@ export default function Landing() {
                 <span className="font-mono text-sm text-primary tracking-wider">{a.num}</span>
                 <span className="font-display font-semibold text-xl tracking-tight">{a.name}</span>
               </div>
+              <div className="mb-3 text-[10px] font-mono uppercase tracking-wider text-primary">{a.role}</div>
               <p className="text-base text-muted-foreground leading-relaxed">{a.desc}</p>
             </motion.div>
           ))}
