@@ -299,8 +299,14 @@ export type Database = {
         Row: {
           applied: boolean
           approved: boolean
+          aws_changes: Json | null
+          aws_console_url: string | null
           created_at: string
           description: string | null
+          executed_at: string | null
+          executed_script: string | null
+          execution_output: string | null
+          execution_status: string
           finding_id: string
           fix_type: string
           id: string
@@ -312,8 +318,14 @@ export type Database = {
         Insert: {
           applied?: boolean
           approved?: boolean
+          aws_changes?: Json | null
+          aws_console_url?: string | null
           created_at?: string
           description?: string | null
+          executed_at?: string | null
+          executed_script?: string | null
+          execution_output?: string | null
+          execution_status?: string
           finding_id: string
           fix_type: string
           id?: string
@@ -325,8 +337,14 @@ export type Database = {
         Update: {
           applied?: boolean
           approved?: boolean
+          aws_changes?: Json | null
+          aws_console_url?: string | null
           created_at?: string
           description?: string | null
+          executed_at?: string | null
+          executed_script?: string | null
+          execution_output?: string | null
+          execution_status?: string
           finding_id?: string
           fix_type?: string
           id?: string

@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { LayoutDashboard, Plug, Activity, FileSearch, LogOut, Network } from "lucide-react";
@@ -8,6 +8,12 @@ import logo from "@/assets/trace-logo.png";
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const [officialTime, setOfficialTime] = useState(() => new Date());
+
+  useEffect(() => {
+    const tick = window.setInterval(() => setOfficialTime(new Date()), 1000);
+    return () => window.clearInterval(tick);
+  }, []);
 
   const items = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -50,7 +56,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             variant="ghost"
             size="sm"
             className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-            onClick={async () => { await signOut(); navigate("/auth"); }}
+            onClick={async () => { await signOut(); navigate("/"); }}
           >
             <LogOut className="h-4 w-4" /> Sign out
           </Button>
@@ -60,10 +66,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="h-16 border-b border-border flex items-center justify-between px-6 bg-background/60 backdrop-blur-xl">
           <div className="flex items-center gap-3">
             <span className="h-2 w-2 rounded-full bg-success pulse-ring" />
-            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">SOC · Realtime</span>
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Official UTC</span>
           </div>
           <div className="text-xs font-mono text-muted-foreground">
-            {new Date().toUTCString()}
+            {officialTime.toUTCString()}
           </div>
         </div>
         <div className="p-6">{children}</div>
