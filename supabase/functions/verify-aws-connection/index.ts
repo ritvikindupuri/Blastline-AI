@@ -7,7 +7,7 @@ const corsHeaders = {
 
 const enc = new TextEncoder();
 async function hmac(key: ArrayBuffer | Uint8Array, data: string): Promise<ArrayBuffer> {
-  const keyData = key instanceof ArrayBuffer ? key : key.buffer.slice(key.byteOffset, key.byteOffset + key.byteLength);
+  const keyData = key instanceof ArrayBuffer ? key : new Uint8Array(key).slice().buffer;
   const k = await crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return crypto.subtle.sign("HMAC", k, enc.encode(data));
 }
