@@ -41,9 +41,11 @@ async function awsRequest(opts: {
   const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
   const dateStamp = amzDate.slice(0, 8);
 
+  const payloadHash = await sha256Hex(body);
   const baseHeaders: Record<string, string> = {
     host,
     "x-amz-date": amzDate,
+    "x-amz-content-sha256": payloadHash,
     ...(opts.creds.st ? { "x-amz-security-token": opts.creds.st } : {}),
     ...(opts.headers ?? {}),
   };
@@ -54,7 +56,6 @@ async function awsRequest(opts: {
   const sortedHeaderKeys = Object.keys(baseHeaders).map((k) => k.toLowerCase()).sort();
   const canonicalHeaders = sortedHeaderKeys.map((k) => `${k}:${baseHeaders[Object.keys(baseHeaders).find((h) => h.toLowerCase() === k)!].trim()}`).join("\n") + "\n";
   const signedHeaders = sortedHeaderKeys.join(";");
-  const payloadHash = await sha256Hex(body);
 
   const canonicalRequest = [method, path, queryStr, canonicalHeaders, signedHeaders, payloadHash].join("\n");
   const credScope = `${dateStamp}/${region}/${service}/aws4_request`;
