@@ -432,8 +432,11 @@ export default function AttackPathDetail() {
                         <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.executed_script || r.snippet}</pre>
                       </div>
                       <div>
-                        <div className="mb-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Agent output</div>
-                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.execution_output || "Remediation has not been executed from Blastline yet."}</pre>
+                        <div className="mb-1 flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                          <span>Agent output</span>
+                          <span className="rounded border border-border px-1.5 py-0.5 text-[9px]">{(r.execution_status || "not_applied").replace(/_/g, " ")}</span>
+                        </div>
+                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed text-muted-foreground">{r.execution_output || "No execution output yet — this remediation is a proposed fix. Approve and run it from the Remediations page to apply it to your AWS account, or copy the snippet above and apply it manually."}</pre>
                       </div>
                     </div>
                     <div className="mt-3">
