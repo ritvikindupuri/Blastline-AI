@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
-import { Plus, Activity, ShieldAlert, Network, Plug } from "lucide-react";
+import { Plus, Activity, ShieldAlert, Network, Plug, GitCompare, TrendingUp, TrendingDown } from "lucide-react";
 import { SEV_DOT, type Severity } from "@/lib/severity";
 import { InfoTip } from "@/components/InfoTip";
 
@@ -11,15 +11,17 @@ export default function Dashboard() {
   const [stats, setStats] = useState({ audits: 0, findings: 0, paths: 0, conns: 0 });
   const [bySev, setBySev] = useState<Record<string, number>>({});
   const [recent, setRecent] = useState<any[]>([]);
+  const [drift, setDrift] = useState<any | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [a, f, p, c, ra] = await Promise.all([
+      const [a, f, p, c, ra, dd] = await Promise.all([
         supabase.from("audits").select("id", { count: "exact", head: true }),
         supabase.from("findings").select("severity"),
         supabase.from("attack_paths").select("id", { count: "exact", head: true }),
         supabase.from("aws_connections").select("id", { count: "exact", head: true }),
         supabase.from("audits").select("*").order("created_at", { ascending: false }).limit(5),
+        supabase.from("audit_diffs").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle(),
       ]);
       const sev: Record<string, number> = {};
       (f.data ?? []).forEach((x: any) => { sev[x.severity] = (sev[x.severity] ?? 0) + 1; });
@@ -31,6 +33,7 @@ export default function Dashboard() {
         conns: c.count ?? 0,
       });
       setRecent(ra.data ?? []);
+      setDrift(dd.data ?? null);
     })();
   }, []);
 
@@ -70,6 +73,34 @@ export default function Dashboard() {
         </div>
 
         <div className="grid lg:grid-cols-2 gap-4">
+          {drift && (
+            <Link to="/drift" className="lg:col-span-2 rounded-xl border border-border bg-card/60 backdrop-blur p-5 shadow-card hover:border-primary/40 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <GitCompare className="h-3.5 w-3.5" /> Drift since last audit
+                </div>
+                <span className="text-xs text-primary">View →</span>
+              </div>
+              <div className="mt-3 grid grid-cols-4 gap-3">
+                <div className={`rounded-lg border p-3 ${drift.new_count > 0 ? "border-destructive/40 text-destructive" : "border-border text-muted-foreground"}`}>
+                  <div className="text-[10px] font-mono uppercase flex items-center gap-1.5"><TrendingUp className="h-3 w-3" /> New</div>
+                  <div className="text-2xl font-display font-bold mt-1">{drift.new_count}</div>
+                </div>
+                <div className={`rounded-lg border p-3 ${drift.regressed_count > 0 ? "border-destructive/40 text-destructive" : "border-border text-muted-foreground"}`}>
+                  <div className="text-[10px] font-mono uppercase flex items-center gap-1.5"><TrendingUp className="h-3 w-3" /> Regressed</div>
+                  <div className="text-2xl font-display font-bold mt-1">{drift.regressed_count}</div>
+                </div>
+                <div className={`rounded-lg border p-3 ${drift.fixed_count > 0 ? "border-success/40 text-success" : "border-border text-muted-foreground"}`}>
+                  <div className="text-[10px] font-mono uppercase flex items-center gap-1.5"><TrendingDown className="h-3 w-3" /> Fixed</div>
+                  <div className="text-2xl font-display font-bold mt-1">{drift.fixed_count}</div>
+                </div>
+                <div className="rounded-lg border border-border p-3 text-muted-foreground">
+                  <div className="text-[10px] font-mono uppercase">Unchanged</div>
+                  <div className="text-2xl font-display font-bold mt-1">{drift.unchanged_count}</div>
+                </div>
+              </div>
+            </Link>
+          )}
           <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-5 shadow-card">
             <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Severity distribution</div>
             <h3 className="font-display font-semibold mt-1 mb-4 flex items-center gap-2">Findings by severity <InfoTip>Critical breaks security model immediately. High = exploitable in days. Medium/Low = compliance + hygiene.</InfoTip></h3>
