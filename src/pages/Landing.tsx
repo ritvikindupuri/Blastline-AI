@@ -1,16 +1,52 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Radar, KeyRound, Network, ShieldCheck, GitBranch, Terminal } from "lucide-react";
 import { motion } from "framer-motion";
 import logo from "@/assets/trace-logo.png";
 
-const agents = [
-  { num: "01", name: "Recon", role: "Inventory", desc: "Maps IAM, S3, EC2, Lambda, RDS, CloudTrail and GuardDuty into a normalized account graph." },
-  { num: "02", name: "Misconfig", role: "Controls", desc: "Evaluates high-signal CIS, NIST and MITRE-aligned checks against live AWS configuration." },
-  { num: "03", name: "Trace", role: "Attack graph", desc: "Links isolated issues into realistic privilege escalation, exposure and lateral movement paths." },
-  { num: "04", name: "Blast Radius", role: "Impact", desc: "Ranks what is reachable, which resources are exposed, and what business risk the chain creates." },
-  { num: "05", name: "Remediate", role: "Fix evidence", desc: "Generates exact Terraform or AWS CLI changes and records script, output and post-change evidence." },
-  { num: "06", name: "Critic", role: "Validation", desc: "Challenges every finding and remediation so analysts see confirmed risk, not noisy scanner output." },
+const pillars = [
+  {
+    num: "01",
+    icon: Radar,
+    name: "Blast-Radius Simulator",
+    role: "Pre-execution",
+    desc: "Pick a resource and a proposed change. See every downstream principal, service, and workflow that breaks — ranked by severity, with rollback steps. Read-only. Touches nothing in AWS.",
+  },
+  {
+    num: "02",
+    icon: KeyRound,
+    name: "Effective-Permissions Explorer",
+    role: "IAM reachability",
+    desc: "Pick any principal. Walk transitive role chains, SCPs, resource policies, and permission boundaries. See toxic combinations and the exact path each permission travels through.",
+  },
+  {
+    num: "03",
+    icon: GitBranch,
+    name: "Attack Graph",
+    role: "Chained risk",
+    desc: "Misconfigurations chained into the precise privilege-escalation paths an attacker would walk. Schematic graph with severity-coded nodes, edge inspector, and grounded evidence.",
+  },
+  {
+    num: "04",
+    icon: ShieldCheck,
+    name: "Multi-Account Audits",
+    role: "Org-aware",
+    desc: "Run audits across one account, many accounts, or an entire org. Group by environment, tag, or ownership. Compliance mapping for CIS, NIST, SOC2, PCI, and MITRE ATT&CK.",
+  },
+  {
+    num: "05",
+    icon: Terminal,
+    name: "Remediation Lifecycle",
+    role: "Audit trail",
+    desc: "Proposed → reviewed → approved → executed → verified, with optional separate-approver enforcement. Every API call recorded immutably with timestamps and before/after state.",
+  },
+  {
+    num: "06",
+    icon: Network,
+    name: "Risk Scoring + Diffs",
+    role: "Trends",
+    desc: "Composite risk grade per account, scheduled audits, and diffs vs the previous run — what's new, what's fixed, what regressed. PDF executive reports + engineer CSV exports.",
+  },
 ];
 
 export default function Landing() {
@@ -22,11 +58,11 @@ export default function Landing() {
           <Link to="/" className="flex items-center gap-3">
             <img
               src={logo}
-              alt="Trace"
+              alt="Blastline"
               className="h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16 lg:h-[72px] lg:w-[72px] transition-all"
             />
             <span className="font-display font-semibold tracking-tight text-2xl sm:text-3xl md:text-4xl">
-              Trace<span className="text-primary">.</span>
+              Blastline<span className="text-primary">.</span>
             </span>
           </Link>
           <div className="flex items-center gap-1.5">
@@ -58,12 +94,12 @@ export default function Landing() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.1, duration: 0.5 }}
           >
-            AWS Security Auditor
+            Pre-execution reasoning · AWS
           </motion.div>
           <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-semibold leading-[1.05] tracking-tight">
-            Trace every path<br />
-            an attacker could take<br />
-            <span className="text-primary">through your AWS account.</span>
+            Know what breaks<br />
+            before you change<br />
+            <span className="text-primary">a single AWS resource.</span>
           </h1>
           <motion.p
             className="mt-8 text-xl md:text-2xl text-muted-foreground max-w-2xl leading-relaxed"
@@ -71,8 +107,9 @@ export default function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25, duration: 0.6 }}
           >
-            Autonomous agents map your AWS surface and chain misconfigurations into the
-            exact privilege-escalation paths an attacker would walk.
+            Blastline simulates the blast radius of any change, walks effective IAM
+            permissions across role chains, and traces real attack paths — so cloud
+            security engineers ship fixes with evidence, not guesswork.
           </motion.p>
           <motion.div
             className="mt-12 flex flex-wrap items-center gap-3"
@@ -82,12 +119,12 @@ export default function Landing() {
           >
             <Link to="/auth?mode=signup">
               <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 font-medium gap-2 h-12 px-7">
-                Start an audit <ArrowRight className="h-4 w-4" />
+                Get started <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
-            <a href="#agents">
+            <a href="#capabilities">
               <Button size="lg" variant="outline" className="border-border bg-transparent hover:bg-secondary text-foreground h-12 px-7">
-                See the agents
+                See what it does
               </Button>
             </a>
           </motion.div>
@@ -97,7 +134,7 @@ export default function Landing() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.55, duration: 0.5 }}
           >
-            {["Read-only access", "No exploits run", "CIS · NIST · MITRE ATT&CK"].map((t) => (
+            {["Read-only AWS access", "No exploits run", "CIS · NIST · SOC2 · PCI · MITRE"].map((t) => (
               <div key={t} className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-primary" /> {t}
               </div>
@@ -111,23 +148,24 @@ export default function Landing() {
         <div className="border-t border-border/60" />
       </div>
 
-      {/* Agents */}
-      <section id="agents" className="max-w-6xl mx-auto px-6 lg:px-10 py-28">
+      {/* Capabilities */}
+      <section id="capabilities" className="max-w-6xl mx-auto px-6 lg:px-10 py-28">
         <div className="grid md:grid-cols-12 gap-8 md:gap-12 mb-16">
           <div className="md:col-span-5">
-            <div className="text-sm font-mono text-primary uppercase tracking-[0.22em] mb-4">The Agents</div>
+            <div className="text-sm font-mono text-primary uppercase tracking-[0.22em] mb-4">Capabilities</div>
             <h2 className="font-display text-4xl md:text-5xl font-semibold tracking-tight leading-tight">
-              Six agents.<br />One verdict.
+              Built for the<br />work AWS<br />doesn't help with.
             </h2>
           </div>
           <p className="md:col-span-6 md:col-start-7 text-lg text-muted-foreground leading-relaxed self-end">
-            Trace runs a focused agent pipeline: collect AWS state, validate risk,
-            build attack paths, quantify impact, and produce auditable remediation evidence.
+            Security Hub tells you something is wrong. Access Analyzer flags a public
+            resource. Neither tells you what breaks if you fix it, who can really reach
+            what, or which findings actually chain into a real attack. Blastline does.
           </p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-px bg-border/60 border border-border/60 rounded-lg overflow-hidden">
-          {agents.map((a, i) => (
+          {pillars.map((a, i) => (
             <motion.div
               key={a.name}
               className="group bg-background hover:bg-card transition-colors p-7"
@@ -136,9 +174,12 @@ export default function Landing() {
               viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.5, delay: i * 0.06, ease: "easeOut" }}
             >
-              <div className="flex items-baseline gap-3 mb-4">
-                <span className="font-mono text-sm text-primary tracking-wider">{a.num}</span>
-                <span className="font-display font-semibold text-xl tracking-tight">{a.name}</span>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-sm text-primary tracking-wider">{a.num}</span>
+                  <span className="font-display font-semibold text-xl tracking-tight">{a.name}</span>
+                </div>
+                <a.icon className="h-4 w-4 text-primary/70 group-hover:text-primary transition-colors" />
               </div>
               <div className="mb-3 text-[10px] font-mono uppercase tracking-wider text-primary">{a.role}</div>
               <p className="text-base text-muted-foreground leading-relaxed">{a.desc}</p>
@@ -147,15 +188,50 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Why */}
+      <div className="max-w-7xl mx-auto px-6 lg:px-10">
+        <div className="border-t border-border/60" />
+      </div>
+      <section className="max-w-6xl mx-auto px-6 lg:px-10 py-28">
+        <div className="grid md:grid-cols-12 gap-8 md:gap-12">
+          <div className="md:col-span-5">
+            <div className="text-sm font-mono text-primary uppercase tracking-[0.22em] mb-4">Why Blastline</div>
+            <h2 className="font-display text-4xl md:text-5xl font-semibold tracking-tight leading-tight">
+              The questions<br />engineers ask<br /><span className="text-primary">before</span> they touch prod.
+            </h2>
+          </div>
+          <div className="md:col-span-6 md:col-start-7 space-y-6">
+            {[
+              { q: "If I make this bucket private, what breaks?", a: "Blast-radius simulator lists every principal, Lambda, and pipeline that reads it — ranked break / warn / info, with rollback steps." },
+              { q: "What can this role really do, transitively?", a: "Effective-permissions explorer walks role chains up to depth 3, applies SCPs and boundaries, and surfaces toxic combinations." },
+              { q: "Which of these 200 findings actually matter?", a: "Attack graph chains misconfigs into reachable paths. The path is the priority — not the CVSS score." },
+              { q: "Did the fix actually land in AWS?", a: "Every remediation API call is recorded immutably with timestamps, before/after state, and a deep link straight to the AWS console." },
+            ].map((row, i) => (
+              <motion.div
+                key={i}
+                className="border-l-2 border-primary/60 pl-5"
+                initial={{ opacity: 0, x: 8 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.4, delay: i * 0.07 }}
+              >
+                <div className="font-display text-lg font-semibold tracking-tight">{row.q}</div>
+                <p className="mt-1.5 text-muted-foreground leading-relaxed">{row.a}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="border-t border-border/60">
         <div className="max-w-6xl mx-auto px-6 lg:px-10 py-10 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <img src={logo} alt="Trace" className="h-9 w-9 sm:h-10 sm:w-10 md:h-11 md:w-11" />
-            <span className="font-display font-semibold text-lg sm:text-xl">Trace<span className="text-primary">.</span></span>
+            <img src={logo} alt="Blastline" className="h-9 w-9 sm:h-10 sm:w-10 md:h-11 md:w-11" />
+            <span className="font-display font-semibold text-lg sm:text-xl">Blastline<span className="text-primary">.</span></span>
           </div>
           <div className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} Trace
+            © {new Date().getFullYear()} Blastline
           </div>
         </div>
       </footer>

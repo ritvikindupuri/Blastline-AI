@@ -50,11 +50,11 @@ export default function Auth() {
         <Link to="/" className="flex items-center justify-center gap-3 mb-10">
           <img
             src={logo}
-            alt="Trace"
+            alt="Blastline"
             className="h-14 w-14 sm:h-16 sm:w-16 md:h-20 md:w-20"
           />
           <span className="font-display font-semibold text-3xl sm:text-4xl md:text-5xl tracking-tight">
-            Trace<span className="text-primary">.</span>
+            Blastline<span className="text-primary">.</span>
           </span>
         </Link>
         <div className="w-full rounded-xl border border-border bg-card/70 backdrop-blur p-6 shadow-card text-center">

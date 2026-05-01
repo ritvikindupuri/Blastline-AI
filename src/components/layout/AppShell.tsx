@@ -29,9 +29,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex">
       <aside className="w-60 border-r border-border bg-sidebar/80 backdrop-blur-xl flex flex-col">
         <Link to="/dashboard" className="flex items-center gap-2.5 px-5 h-16 border-b border-sidebar-border">
-          <img src={logo} alt="Trace" className="h-10 w-10 md:h-11 md:w-11 lg:h-12 lg:w-12" />
+          <img src={logo} alt="Blastline" className="h-10 w-10 md:h-11 md:w-11 lg:h-12 lg:w-12" />
           <div className="font-display font-semibold tracking-tight text-foreground text-xl md:text-2xl">
-            Trace<span className="text-primary">.</span>
+            Blastline<span className="text-primary">.</span>
           </div>
         </Link>
         <nav className="flex-1 p-3 space-y-1">
