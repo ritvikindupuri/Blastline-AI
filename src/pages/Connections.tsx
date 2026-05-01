@@ -135,7 +135,7 @@ export default function Connections() {
             <h3 className="font-display font-semibold">Audit preset</h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            Pick the services Trace should audit. We'll recommend the minimal set of AWS-managed policies to attach.
+            Pick the services Blastline should audit. We'll recommend the minimal set of AWS-managed policies to attach.
           </p>
           <div className="grid sm:grid-cols-2 gap-2">
             {AUDIT_SERVICES.map((s) => {
