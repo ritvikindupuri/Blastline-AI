@@ -39,7 +39,28 @@ export default function AuditDetail() {
   const [findings, setFindings] = useState<any[]>([]);
   const [paths, setPaths] = useState<any[]>([]);
   const [remediations, setRemediations] = useState<any[]>([]);
+  const [busyRemId, setBusyRemId] = useState<string | null>(null);
+  const [remError, setRemError] = useState<Record<string, string>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
+  async function applyRemediation(r: any) {
+    setBusyRemId(r.id);
+    setRemError((m) => ({ ...m, [r.id]: "" }));
+    try {
+      // Auto-advance lifecycle if needed: proposed → reviewed → approved → executed
+      if (r.lifecycle_state === "proposed" || r.lifecycle_state === "reviewed") {
+        const patch: any = { lifecycle_state: "approved" };
+        await supabase.from("remediations").update(patch).eq("id", r.id);
+      }
+      const { data, error } = await supabase.functions.invoke("apply-remediation", { body: { remediation_id: r.id } });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      await reload();
+    } catch (e: any) {
+      setRemError((m) => ({ ...m, [r.id]: e?.message ?? String(e) }));
+    } finally {
+      setBusyRemId(null);
+    }
+  }
 
   async function reload() {
     const [a, t, f, p] = await Promise.all([
