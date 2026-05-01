@@ -16,6 +16,7 @@ import AttackPaths from "./pages/AttackPaths.tsx";
 import AttackPathDetail from "./pages/AttackPathDetail.tsx";
 import BlastRadius from "./pages/BlastRadius.tsx";
 import EffectivePermissions from "./pages/EffectivePermissions.tsx";
+import PlanReview from "./pages/PlanReview.tsx";
 import { AuthProvider } from "./lib/auth";
 import { RequireAuth } from "./components/layout/RequireAuth";
 
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/attack-paths/:id" element={<RequireAuth><AttackPathDetail /></RequireAuth>} />
             <Route path="/blast-radius" element={<RequireAuth><BlastRadius /></RequireAuth>} />
             <Route path="/effective-permissions" element={<RequireAuth><EffectivePermissions /></RequireAuth>} />
+            <Route path="/plan-review" element={<RequireAuth><PlanReview /></RequireAuth>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

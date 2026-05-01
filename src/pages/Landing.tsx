@@ -1,14 +1,14 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, CheckCircle2, Radar, KeyRound, GitBranch, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Radar, KeyRound, GitBranch, ShieldCheck, GitPullRequest } from "lucide-react";
 import { motion } from "framer-motion";
 import logo from "@/assets/blastline-logo.png";
 
 const pillars = [
-  { num: "01", icon: Radar,       name: "Blast-Radius Simulator",     role: "Pre-execution",   desc: "See what breaks before you change a resource." },
-  { num: "02", icon: KeyRound,    name: "Effective Permissions",      role: "IAM reachability", desc: "Walk role chains, SCPs and boundaries end-to-end." },
-  { num: "03", icon: GitBranch,   name: "Attack Graph",                role: "Chained risk",     desc: "Misconfigs linked into real escalation paths." },
-  { num: "04", icon: ShieldCheck, name: "Multi-Account Audits",       role: "Org-aware",        desc: "CIS · NIST · SOC2 · PCI · MITRE, in one pane." },
+  { num: "01", icon: GitPullRequest, name: "Plan Review",                role: "Pre-merge",        desc: "Paste a terraform plan. Get ship/warn/block per change." },
+  { num: "02", icon: Radar,          name: "Blast-Radius Simulator",     role: "Pre-execution",    desc: "See what breaks before you change a resource." },
+  { num: "03", icon: KeyRound,       name: "Effective Permissions",      role: "IAM reachability", desc: "Walk role chains, SCPs and boundaries end-to-end." },
+  { num: "04", icon: GitBranch,      name: "Attack Graph",               role: "Chained risk",     desc: "Misconfigs linked into real escalation paths." },
 ];
 
 export default function Landing() {
@@ -56,13 +56,13 @@ export default function Landing() {
         </div>
 
         <motion.div className="max-w-3xl relative" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: "easeOut" }}>
-          <div className="text-xs font-mono text-primary uppercase tracking-[0.24em] mb-6">Pre-execution reasoning · AWS</div>
+          <div className="text-xs font-mono text-primary uppercase tracking-[0.24em] mb-6">Pre-merge reasoning · AWS</div>
           <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-semibold leading-[1.04] tracking-tight">
-            Know what breaks<br />
-            <span className="text-primary">before</span> you ship.
+            Know what your IAM change breaks<br />
+            <span className="text-primary">before</span> the PR merges.
           </h1>
           <p className="mt-7 text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed">
-            Simulate blast radius. Walk effective IAM. Trace real attack paths. For AWS security engineers.
+            Paste a <span className="font-mono text-foreground">terraform plan</span>. Get a per-resource ship / warn / block verdict, grounded in your live AWS audit. For AWS security engineers.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-3">
             <Link to="/auth?mode=signup">
