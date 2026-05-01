@@ -109,15 +109,6 @@ Deno.serve(async (req) => {
 
       for (const repo of selected) {
         try {
-          // Check existing hooks
-          const hooksR = await gh(token, `/repos/${repo}/hooks?per_page=100`);
-          if (!hooksR.ok) {
-            results.push({ repo, ok: false, status: hooksR.status, message: `cannot list hooks (need admin)` });
-            continue;
-          }
-          const hooks: any[] = await hooksR.json();
-          const existing = hooks.find((h) => h?.config?.url === webhookUrl);
-
           const payload = {
             name: "web",
             active: true,
@@ -129,6 +120,14 @@ Deno.serve(async (req) => {
               insecure_ssl: "0",
             },
           };
+
+          // Try to list existing hooks; if forbidden, skip listing and just try to POST.
+          let existing: any = null;
+          const hooksR = await gh(token, `/repos/${repo}/hooks?per_page=100`);
+          if (hooksR.ok) {
+            const hooks: any[] = await hooksR.json();
+            existing = hooks.find((h) => h?.config?.url === webhookUrl);
+          }
 
           if (existing) {
             const patchR = await gh(token, `/repos/${repo}/hooks/${existing.id}`, {
@@ -146,10 +145,16 @@ Deno.serve(async (req) => {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(payload),
             });
-            results.push({
-              repo, ok: postR.ok, status: postR.status,
-              message: postR.ok ? "webhook installed" : `install failed: ${(await postR.text()).slice(0, 160)}`,
-            });
+            let message = "webhook installed";
+            if (!postR.ok) {
+              const txt = (await postR.text()).slice(0, 200);
+              if (postR.status === 404 || postR.status === 403) {
+                message = `missing 'Webhooks: Read & write' permission on this repo (GitHub ${postR.status})`;
+              } else {
+                message = `install failed (${postR.status}): ${txt}`;
+              }
+            }
+            results.push({ repo, ok: postR.ok, status: postR.status, message });
           }
         } catch (e: any) {
           results.push({ repo, ok: false, status: 0, message: e?.message ?? String(e) });
