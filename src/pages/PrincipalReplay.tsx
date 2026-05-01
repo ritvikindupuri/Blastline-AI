@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, History, AlertTriangle, ShieldAlert, Activity, Trash2, User, Calendar, Cloud, Sparkles, BarChart3 } from "lucide-react";
+import { Loader2, History, AlertTriangle, ShieldAlert, Activity, Trash2, User, Calendar, Cloud, Sparkles, BarChart3, Wand2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 const SEV_COLOR: Record<string, string> = {
@@ -21,6 +21,9 @@ export default function PrincipalReplay() {
   const [running, setRunning] = useState(false);
   const [rows, setRows] = useState<any[]>([]);
   const [active, setActive] = useState<any | null>(null);
+  const [principals, setPrincipals] = useState<any[]>([]);
+  const [loadingPrincipals, setLoadingPrincipals] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
 
   async function load() {
     const { data: c } = await supabase.from("aws_connections").select("id, account_label, aws_account_id, default_region").order("created_at", { ascending: false });
@@ -30,6 +33,58 @@ export default function PrincipalReplay() {
     setRows(data ?? []);
   }
   useEffect(() => { load(); }, []);
+
+  // Auto-fetch principals whenever the connection changes
+  useEffect(() => {
+    if (!connectionId) return;
+    setPrincipals([]);
+    setArn("");
+    fetchPrincipals();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectionId]);
+
+  async function fetchPrincipals() {
+    if (!connectionId) return;
+    setLoadingPrincipals(true);
+    const { data, error } = await supabase.functions.invoke("list-aws-resources", {
+      body: { connection_id: connectionId, service: "iam" },
+    });
+    setLoadingPrincipals(false);
+    if (error || data?.error) {
+      toast.error(data?.error ?? error?.message ?? "Failed to load principals");
+      return;
+    }
+    const items = (data?.items ?? []) as any[];
+    setPrincipals(items);
+    if (items[0] && !arn) setArn(items[0].arn);
+  }
+
+  async function suggestPrincipal() {
+    if (principals.length === 0) {
+      toast.error("No principals loaded yet");
+      return;
+    }
+    setSuggesting(true);
+    try {
+      // Heuristic agent: prefer human IAM users, then non-service roles with broad names
+      const score = (p: any) => {
+        const a = (p.arn || "").toLowerCase();
+        const h = (p.hint || "").toLowerCase();
+        let s = 0;
+        if (h.includes("user")) s += 50;
+        if (/admin|root|power|deploy|ci|terraform|ops/.test(a)) s += 40;
+        if (a.includes(":role/")) s += 20;
+        if (a.includes("service-role") || a.includes("aws-service-role")) s -= 100;
+        return s;
+      };
+      const ranked = [...principals].sort((a, b) => score(b) - score(a));
+      const pick = ranked[0];
+      setArn(pick.arn);
+      toast.success(`AI picked ${pick.label || pick.arn.split("/").pop()}`);
+    } finally {
+      setSuggesting(false);
+    }
+  }
 
   async function run() {
     if (!connectionId || !arn) return toast.error("Pick a connection and enter a principal ARN");
@@ -85,9 +140,6 @@ export default function PrincipalReplay() {
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">New Replay</span>
             </div>
-            <span className="text-[10px] font-mono text-muted-foreground">
-              CloudTrail LookupEvents · attributes by Username · Gemini behavioral AI
-            </span>
           </header>
           <div className="p-5 grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
             <Field label="AWS Account" icon={Cloud} cols="md:col-span-3">
@@ -96,10 +148,44 @@ export default function PrincipalReplay() {
                 {conns.map((c) => <option key={c.id} value={c.id}>{c.account_label} ({c.aws_account_id})</option>)}
               </select>
             </Field>
-            <Field label="Principal ARN" icon={User} cols="md:col-span-6">
-              <Input value={arn} onChange={(e) => setArn(e.target.value)}
-                placeholder="arn:aws:iam::123456789012:user/alice"
-                className="font-mono text-sm h-10" />
+            <Field label="Principal" icon={User} cols="md:col-span-6">
+              <div className="flex gap-2">
+                <select
+                  value={principals.some((p) => p.arn === arn) ? arn : ""}
+                  onChange={(e) => setArn(e.target.value)}
+                  disabled={loadingPrincipals || principals.length === 0}
+                  className="flex-1 min-w-0 bg-background border border-border rounded-md px-3 h-10 text-sm font-mono focus:border-primary outline-none disabled:opacity-50"
+                >
+                  {loadingPrincipals && <option value="">Loading principals…</option>}
+                  {!loadingPrincipals && principals.length === 0 && <option value="">No principals found</option>}
+                  {!loadingPrincipals && principals.length > 0 && (
+                    <>
+                      <option value="">Select a principal…</option>
+                      <optgroup label="IAM Users">
+                        {principals.filter((p) => (p.hint || "").toLowerCase().includes("user")).map((p) => (
+                          <option key={p.arn} value={p.arn}>{p.label} — {p.arn}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="IAM Roles">
+                        {principals.filter((p) => (p.hint || "").toLowerCase().includes("role")).map((p) => (
+                          <option key={p.arn} value={p.arn}>{p.label} — {p.arn}</option>
+                        ))}
+                      </optgroup>
+                    </>
+                  )}
+                </select>
+                <Button type="button" variant="outline" size="sm" onClick={fetchPrincipals} disabled={loadingPrincipals || !connectionId}
+                  className="h-10 px-2.5" title="Refresh principals from AWS">
+                  <RefreshCw className={`h-3.5 w-3.5 ${loadingPrincipals ? "animate-spin" : ""}`} />
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={suggestPrincipal} disabled={suggesting || principals.length === 0}
+                  className="h-10 px-2.5 gap-1.5 border-primary/40 text-primary hover:bg-primary/10" title="Let the agent pick the most interesting principal">
+                  <Wand2 className="h-3.5 w-3.5" /> AI pick
+                </Button>
+              </div>
+              {arn && !principals.some((p) => p.arn === arn) && (
+                <Input value={arn} onChange={(e) => setArn(e.target.value)} className="font-mono text-xs h-8 mt-2" placeholder="Or paste a custom ARN" />
+              )}
             </Field>
             <Field label="Window" icon={Calendar} cols="md:col-span-1">
               <select value={days} onChange={(e) => setDays(Number(e.target.value))}
