@@ -307,6 +307,8 @@ async function runPipeline(audit_id: string, user_id: string) {
   const conn = (audit as any).aws_connections;
   const services: string[] = audit?.scope?.services ?? [];
   const region = conn.default_region;
+  const regions: string[] = (audit?.regions && audit.regions.length) ? audit.regions : (conn.allowed_regions ?? [region]);
+  await loadControls();
 
   await log(audit_id, user_id, "recon", `Booting recon agent · target ${conn.aws_account_id ?? "(pending)"} · region ${region}`, "init");
 
@@ -315,11 +317,12 @@ async function runPipeline(audit_id: string, user_id: string) {
   }
   const creds: Creds = { ak: conn.access_key_id, sk: conn.secret_access_key };
   const ident = await getCallerIdentity(creds, region);
+  const accountId = ident.account ?? conn.aws_account_id ?? null;
   await logExec(audit_id, user_id, "recon", "auth",
     `Authenticated as ${ident.arn ?? "unknown"} · account ${ident.account ?? "?"}`,
     `aws sts get-caller-identity --region ${region}`,
-    { Account: ident.account, Arn: ident.arn },
-    "Verifying credentials and resolving the audit target account before enumeration.");
+    { Account: ident.account, Arn: ident.arn, regions },
+    `Verifying credentials. Will scan ${regions.length} region(s): ${regions.join(", ")}.`);
 
   const findings: any[] = [];
 
