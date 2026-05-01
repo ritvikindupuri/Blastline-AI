@@ -170,6 +170,15 @@ async function log(audit_id: string, user_id: string, agent: string, content: st
   await admin.from("agent_transcripts").insert({ audit_id, user_id, agent, content, phase, data: data ?? null, seq: ++_seq });
 }
 
+// Structured execution log: command + output streamed to UI in realtime
+async function logExec(audit_id: string, user_id: string, agent: string, phase: string, summary: string, command: string, output: any, thinking?: string) {
+  await admin.from("agent_transcripts").insert({
+    audit_id, user_id, agent, content: summary, phase,
+    data: { command, output: typeof output === "string" ? output.slice(0, 4000) : output, ...(thinking ? { thinking } : {}) },
+    seq: ++_seq,
+  });
+}
+
 function mkFinding(audit_id: string, user_id: string, service: string, check_id: string, severity: string,
   title: string, description: string, resource_arn: string | null | undefined, region: string, extra: any) {
   return {
@@ -453,7 +462,7 @@ async function runPipeline(audit_id: string, user_id: string) {
           blast_radius: p.blast_radius ?? null,
           finding_ids: ids,
         });
-        await log(audit_id, user_id, "attackpath", `⚡ ${p.title} (${p.severity})`, "path");
+        await log(audit_id, user_id, "attackpath", `${p.title} (${p.severity})`, "path", { thinking: p.narrative });
       }
     } catch (e) {
       await log(audit_id, user_id, "attackpath", `Parsing failed: ${e}`, "warn");
