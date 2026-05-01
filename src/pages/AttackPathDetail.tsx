@@ -5,7 +5,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { SEV_RING, type Severity } from "@/lib/severity";
 import { Button } from "@/components/ui/button";
 import ReactFlow, { Background, BackgroundVariant, Controls, Handle, MarkerType, MiniMap, Position, type NodeProps } from "reactflow";
-import { ExternalLink, GitBranch, ShieldCheck, Terminal, Globe, KeyRound, Database, ServerCog, Cloud, Network as NetworkIcon, AlertTriangle, type LucideIcon } from "lucide-react";
+import { ExternalLink, GitBranch, ShieldCheck, Terminal, Globe, KeyRound, Database, ServerCog, Cloud, Network as NetworkIcon, AlertTriangle, X, ChevronRight, type LucideIcon } from "lucide-react";
 import "reactflow/dist/style.css";
 import { RemediationLifecycle } from "@/components/RemediationLifecycle";
 
@@ -64,34 +64,48 @@ const awsConsoleFor = (finding?: any, remediation?: any) => {
 function AttackNode({ data, selected }: NodeProps<GraphNodeData>) {
   const Icon = pickIcon(data.kind);
   const active = selected || data.active;
+  const sevColor =
+    data.severity === "critical" ? "hsl(var(--critical))"
+    : data.severity === "high" ? "hsl(var(--high))"
+    : data.severity === "medium" ? "hsl(var(--medium))"
+    : data.severity === "low" ? "hsl(var(--low))"
+    : "hsl(var(--muted-foreground))";
   return (
     <div
-      className={`group relative w-[260px] rounded-lg border bg-card/95 backdrop-blur shadow-card transition-all duration-200 ${
+      className={`group relative w-[230px] rounded-md border-2 bg-card shadow-card transition-all duration-150 ${
         active
-          ? "border-primary ring-2 ring-primary/40 shadow-glow scale-[1.02]"
+          ? "border-primary shadow-glow"
           : data.dimmed
-            ? "border-border/40 opacity-40"
-            : "border-border hover:border-primary/60 hover:shadow-glow"
+            ? "border-border/30 opacity-30"
+            : "border-border hover:border-primary/70"
       }`}
+      style={{ borderLeftColor: sevColor, borderLeftWidth: 4 }}
     >
-      <Handle type="target" position={Position.Left} className="!h-2.5 !w-2.5 !border-2 !border-primary !bg-background" />
-      <Handle type="source" position={Position.Right} className="!h-2.5 !w-2.5 !border-2 !border-primary !bg-primary" />
+      <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-2 !border-border !bg-background" />
+      <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-2 !border-primary !bg-primary" />
 
       {/* Header strip */}
-      <div className={`flex items-center justify-between rounded-t-lg border-b px-3 py-1.5 ${active ? "border-primary/40 bg-primary/10" : "border-border/60 bg-background/40"}`}>
-        <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-primary">
-          <span className="tabular-nums">{String((data.index ?? 0) + 1).padStart(2, "0")}</span>
-          <span className="text-muted-foreground">·</span>
+      <div className="flex items-center justify-between border-b border-border/60 bg-background/50 px-2.5 py-1">
+        <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+          <span className="tabular-nums text-foreground/70">#{String((data.index ?? 0) + 1).padStart(2, "0")}</span>
+          <span className="text-border">|</span>
           <span>{data.kind || "step"}</span>
         </div>
-        <span className={`h-1.5 w-1.5 rounded-full ${active ? "bg-primary animate-pulse" : "bg-muted-foreground/40"}`} />
+        {data.severity && (
+          <span className="font-mono text-[9px] uppercase tracking-wider" style={{ color: sevColor }}>
+            {data.severity}
+          </span>
+        )}
       </div>
 
-      <div className="flex items-start gap-2.5 px-3 py-2.5">
-        <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${active ? "border-primary bg-primary/15 text-primary" : "border-border bg-background/60 text-muted-foreground group-hover:text-primary group-hover:border-primary/50"}`}>
+      <div className="flex items-start gap-2 px-2.5 py-2">
+        <div
+          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-background/60"
+          style={{ color: sevColor }}
+        >
           <Icon className="h-3.5 w-3.5" />
         </div>
-        <div className="min-w-0 flex-1 break-words font-mono text-[12px] leading-snug text-foreground">
+        <div className="min-w-0 flex-1 break-words font-mono text-[11px] leading-tight text-foreground">
           {data.label}
         </div>
       </div>
@@ -108,6 +122,7 @@ export default function AttackPathDetail() {
   const [remediations, setRemediations] = useState<any[]>([]);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [requireSeparateApprover, setRequireSeparateApprover] = useState(false);
 
@@ -181,7 +196,7 @@ export default function AttackPathDetail() {
         type: "attackNode",
         sourcePosition: Position.Right,
         targetPosition: Position.Left,
-        data: { label: n.label ?? n.id ?? `node-${i}`, kind: n.kind, index: i, active, dimmed: hasHover && !active },
+        data: { label: n.label ?? n.id ?? `node-${i}`, kind: n.kind, index: i, active, dimmed: hasHover && !active, severity: n.severity ?? path?.severity },
         position: n.position ?? fallbackPos,
       };
     });
@@ -198,7 +213,7 @@ export default function AttackPathDetail() {
         animated: active,
         interactionWidth: 28,
         markerEnd: { type: MarkerType.ArrowClosed, color: active ? "hsl(36 100% 50%)" : "hsl(215 15% 55%)", width: 18, height: 18 },
-        style: { stroke: active ? "hsl(36 100% 50%)" : "hsl(215 15% 55%)", strokeWidth: active ? 2.5 : 1.5, opacity: dimmed ? 0.2 : 0.95, strokeDasharray: active ? "0" : "5 4" },
+        style: { stroke: active ? "hsl(36 100% 50%)" : "hsl(215 25% 45%)", strokeWidth: active ? 2 : 1.25, opacity: dimmed ? 0.2 : 0.95 },
         labelBgPadding: [8, 4] as [number, number],
         labelBgBorderRadius: 4,
         labelBgStyle: { fill: "hsl(215 51% 12%)", fillOpacity: 0.95, stroke: active ? "hsl(36 100% 50%)" : "hsl(215 35% 22%)", strokeWidth: 1 },
@@ -209,6 +224,11 @@ export default function AttackPathDetail() {
   }, [path, hoveredNodeId, hoveredEdgeId]);
 
   if (!path) return <AppShell><div className="text-muted-foreground">Loading…</div></AppShell>;
+
+  const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : null;
+  const selectedRaw = selectedNodeId ? ((path.graph as any)?.nodes ?? []).find((n: any, i: number) => String(n.id ?? i) === selectedNodeId) : null;
+  const selectedIncoming = selectedNodeId ? edges.filter((e) => e.target === selectedNodeId) : [];
+  const selectedOutgoing = selectedNodeId ? edges.filter((e) => e.source === selectedNodeId) : [];
 
   return (
     <AppShell>
@@ -230,21 +250,22 @@ export default function AttackPathDetail() {
         </section>
 
         <section className="overflow-hidden rounded-lg border border-border bg-card/40 shadow-card">
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
             <div>
-              <div className="text-xs font-mono uppercase tracking-wider text-primary">Interactive attack graph</div>
-              <div className="text-xs text-muted-foreground">Hover nodes or arrows to isolate the linked attack segment; drag, zoom, and pan to inspect the chain.</div>
+              <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-foreground/80">
+                <GitBranch className="h-3.5 w-3.5 text-primary" /> attack graph
+                <span className="text-border">|</span>
+                <span className="text-muted-foreground">{nodes.length} nodes · {edges.length} edges</span>
+              </div>
             </div>
-            <GitBranch className="h-5 w-5 text-primary" />
+            <div className="flex items-center gap-3 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: "hsl(var(--critical))" }} /> critical</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: "hsl(var(--high))" }} /> high</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: "hsl(var(--medium))" }} /> medium</span>
+            </div>
           </div>
-          <div className="relative h-[640px] bg-[radial-gradient(circle_at_30%_20%,hsl(36_100%_50%/0.06),transparent_60%)]">
-            {/* Legend overlay */}
-            <div className="pointer-events-none absolute right-4 top-4 z-10 rounded-md border border-border bg-card/90 backdrop-blur px-3 py-2 text-[10px] font-mono text-muted-foreground space-y-1">
-              <div className="font-semibold text-foreground/80 uppercase tracking-wider mb-1">Legend</div>
-              <div className="flex items-center gap-2"><span className="inline-block h-0.5 w-6 bg-primary" /> active path</div>
-              <div className="flex items-center gap-2"><span className="inline-block h-0.5 w-6 border-t border-dashed border-muted-foreground" /> dependency</div>
-              <div className="flex items-center gap-2"><span className="inline-block h-2 w-2 rounded-full bg-primary animate-pulse" /> hovered node</div>
-            </div>
+          <div className="relative grid h-[640px] grid-cols-[1fr_320px]">
+            <div className="relative">
             <ReactFlow
               nodes={nodes}
               edges={edges}
@@ -262,11 +283,70 @@ export default function AttackPathDetail() {
               onNodeMouseLeave={() => setHoveredNodeId(null)}
               onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
               onEdgeMouseLeave={() => setHoveredEdgeId(null)}
+              onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+              onPaneClick={() => setSelectedNodeId(null)}
             >
-              <Background variant={BackgroundVariant.Dots} color="hsl(215 35% 28%)" gap={22} size={1.2} />
-              <MiniMap className="!bg-card !border !border-border !rounded-md" nodeColor={(n) => ((n.data as any)?.active ? "hsl(36 100% 50%)" : "hsl(215 15% 55%)")} maskColor="hsl(215 51% 12% / 0.78)" pannable zoomable />
+              <Background variant={BackgroundVariant.Lines} color="hsl(215 35% 22%)" gap={32} lineWidth={0.5} />
+              <MiniMap className="!bg-card !border !border-border !rounded-md" nodeColor={(n) => {
+                const sev = (n.data as any)?.severity;
+                if (sev === "critical") return "hsl(var(--critical))";
+                if (sev === "high") return "hsl(var(--high))";
+                if (sev === "medium") return "hsl(var(--medium))";
+                return "hsl(215 15% 55%)";
+              }} maskColor="hsl(215 51% 12% / 0.78)" pannable zoomable />
               <Controls className="!bg-card !border-border !rounded-md overflow-hidden [&>button]:!bg-card [&>button]:!border-border [&>button]:!text-foreground hover:[&>button]:!bg-secondary" />
             </ReactFlow>
+            </div>
+            {/* Inspector */}
+            <aside className="border-l border-border bg-card/60 overflow-y-auto">
+              {!selectedNode && (
+                <div className="p-4 text-xs text-muted-foreground space-y-2">
+                  <div className="font-mono uppercase tracking-wider text-foreground/80">Inspector</div>
+                  <p>Click any node in the graph to inspect its kind, severity, evidence, and adjacent edges.</p>
+                  <div className="mt-4 space-y-1.5 text-[10px] font-mono uppercase tracking-wider">
+                    <div className="flex items-center gap-2"><span className="inline-block h-0.5 w-6 bg-primary" /> active path</div>
+                    <div className="flex items-center gap-2"><span className="inline-block h-0.5 w-6 bg-muted-foreground/60" /> dependency</div>
+                  </div>
+                </div>
+              )}
+              {selectedNode && (
+                <div className="p-4 space-y-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Step #{String((selectedNode.data?.index ?? 0) + 1).padStart(2, "0")} · {selectedRaw?.kind || "node"}</div>
+                      <div className="mt-1 font-mono text-sm text-foreground break-words">{selectedNode.data?.label}</div>
+                    </div>
+                    <button onClick={() => setSelectedNodeId(null)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+                  </div>
+                  {selectedRaw?.evidence && (
+                    <div>
+                      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Evidence</div>
+                      <pre className="rounded border border-border bg-background/60 p-2 text-[10px] font-mono whitespace-pre-wrap break-words max-h-40 overflow-auto">{typeof selectedRaw.evidence === "string" ? selectedRaw.evidence : JSON.stringify(selectedRaw.evidence, null, 2)}</pre>
+                    </div>
+                  )}
+                  <div>
+                    <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Incoming ({selectedIncoming.length})</div>
+                    <div className="space-y-1">
+                      {selectedIncoming.length === 0 && <div className="text-xs text-muted-foreground">— entry node</div>}
+                      {selectedIncoming.map((e) => {
+                        const src = nodes.find((n) => n.id === e.source);
+                        return <div key={e.id} className="flex items-center gap-1.5 rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-mono"><ChevronRight className="h-3 w-3 text-primary rotate-180" /><span className="truncate">{src?.data?.label ?? e.source}</span></div>;
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Outgoing ({selectedOutgoing.length})</div>
+                    <div className="space-y-1">
+                      {selectedOutgoing.length === 0 && <div className="text-xs text-muted-foreground">— terminal node</div>}
+                      {selectedOutgoing.map((e) => {
+                        const tgt = nodes.find((n) => n.id === e.target);
+                        return <div key={e.id} className="flex items-center gap-1.5 rounded border border-border bg-background/40 px-2 py-1 text-[11px] font-mono"><ChevronRight className="h-3 w-3 text-primary" /><span className="truncate">{tgt?.data?.label ?? e.target}</span></div>;
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </aside>
           </div>
         </section>
 
