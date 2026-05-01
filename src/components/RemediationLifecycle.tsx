@@ -13,6 +13,9 @@ import {
   Lock,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
+  Loader2,
+  AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -50,6 +53,8 @@ export function RemediationLifecycle({ remediation: r, currentUserId, requireSep
   const [events, setEvents] = useState<any[]>([]);
   const [showTrail, setShowTrail] = useState(false);
   const [reviewNote, setReviewNote] = useState("");
+  const [execError, setExecError] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<any | null>(null);
 
   async function loadEvents() {
     const { data } = await supabase
@@ -85,6 +90,26 @@ export function RemediationLifecycle({ remediation: r, currentUserId, requireSep
     }
     onChange?.();
     loadEvents();
+  }
+
+  async function executeRemediation() {
+    setBusy("executed");
+    setExecError(null);
+    setLastResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("apply-remediation", {
+        body: { remediation_id: r.id },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      setLastResult(data);
+      onChange?.();
+      loadEvents();
+    } catch (e: any) {
+      setExecError(e?.message ?? String(e));
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
@@ -169,8 +194,9 @@ export function RemediationLifecycle({ remediation: r, currentUserId, requireSep
           </>
         )}
         {r.lifecycle_state === "approved" && (
-          <Button size="sm" disabled={!!busy} onClick={() => transition("executed")} className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90">
-            <PlayCircle className="h-3.5 w-3.5" /> Execute remediation
+          <Button size="sm" disabled={!!busy} onClick={executeRemediation} className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90">
+            {busy === "executed" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
+            {busy === "executed" ? "Agent executing in AWS…" : "Execute via AI agent"}
           </Button>
         )}
         {r.lifecycle_state === "executed" && (
@@ -198,6 +224,49 @@ export function RemediationLifecycle({ remediation: r, currentUserId, requireSep
           Evidence trail ({events.length})
         </button>
       </div>
+
+      {execError && (
+        <div className="mx-3 mb-3 flex items-start gap-2 rounded-md border border-sev-critical/40 bg-sev-critical/10 p-2.5 text-xs font-mono text-sev-critical">
+          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <div className="flex-1 break-words">Execution failed: {execError}</div>
+        </div>
+      )}
+
+      {(lastResult || r.aws_console_url) && (r.lifecycle_state === "executed" || r.lifecycle_state === "verified") && (
+        <div className="mx-3 mb-3 rounded-md border border-success/40 bg-success/5 p-3 text-xs font-mono">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-1.5 text-success">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span className="uppercase tracking-wider text-[10px]">Applied to AWS</span>
+            </div>
+            {(lastResult?.console_url || r.aws_console_url) && (
+              <a
+                href={lastResult?.console_url || r.aws_console_url}
+                target="_blank" rel="noreferrer"
+                className="flex items-center gap-1 rounded border border-border bg-background/60 px-2 py-1 text-[10px] uppercase tracking-wider hover:border-primary hover:text-primary"
+              >
+                View result in AWS <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+          {Array.isArray(lastResult?.results) && lastResult.results.length > 0 && (
+            <ul className="space-y-1">
+              {lastResult.results.map((res: any, i: number) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span className={res.ok ? "text-success" : "text-sev-critical"}>{res.ok ? "✓" : "✗"}</span>
+                  <span className="text-foreground/90">{res.api}</span>
+                  <span className="text-muted-foreground">({res.status ?? "ERR"})</span>
+                  {res.console_url && (
+                    <a href={res.console_url} target="_blank" rel="noreferrer" className="ml-auto flex items-center gap-1 text-muted-foreground hover:text-primary">
+                      open <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {showTrail && (
         <div className="border-t border-border/60 px-3 py-3 space-y-2 bg-background/30">
