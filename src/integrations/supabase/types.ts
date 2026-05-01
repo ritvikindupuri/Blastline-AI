@@ -501,6 +501,168 @@ export type Database = {
           },
         ]
       }
+      pr_bot_configs: {
+        Row: {
+          created_at: string
+          default_connection_id: string | null
+          enabled: boolean
+          github_token: string | null
+          id: string
+          repo_allowlist: string[]
+          updated_at: string
+          user_id: string
+          webhook_secret: string
+        }
+        Insert: {
+          created_at?: string
+          default_connection_id?: string | null
+          enabled?: boolean
+          github_token?: string | null
+          id?: string
+          repo_allowlist?: string[]
+          updated_at?: string
+          user_id: string
+          webhook_secret?: string
+        }
+        Update: {
+          created_at?: string
+          default_connection_id?: string | null
+          enabled?: boolean
+          github_token?: string | null
+          id?: string
+          repo_allowlist?: string[]
+          updated_at?: string
+          user_id?: string
+          webhook_secret?: string
+        }
+        Relationships: []
+      }
+      pr_reviews: {
+        Row: {
+          ai_summary: string | null
+          author: string | null
+          comment_posted: boolean
+          comment_url: string | null
+          created_at: string
+          error: string | null
+          findings: Json
+          head_sha: string | null
+          id: string
+          plan_text: string | null
+          pr_number: number
+          pr_title: string | null
+          pr_url: string | null
+          repo_full_name: string
+          risk_score: number
+          status: string
+          updated_at: string
+          user_id: string
+          verdict: string
+        }
+        Insert: {
+          ai_summary?: string | null
+          author?: string | null
+          comment_posted?: boolean
+          comment_url?: string | null
+          created_at?: string
+          error?: string | null
+          findings?: Json
+          head_sha?: string | null
+          id?: string
+          plan_text?: string | null
+          pr_number: number
+          pr_title?: string | null
+          pr_url?: string | null
+          repo_full_name: string
+          risk_score?: number
+          status?: string
+          updated_at?: string
+          user_id: string
+          verdict?: string
+        }
+        Update: {
+          ai_summary?: string | null
+          author?: string | null
+          comment_posted?: boolean
+          comment_url?: string | null
+          created_at?: string
+          error?: string | null
+          findings?: Json
+          head_sha?: string | null
+          id?: string
+          plan_text?: string | null
+          pr_number?: number
+          pr_title?: string | null
+          pr_url?: string | null
+          repo_full_name?: string
+          risk_score?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+          verdict?: string
+        }
+        Relationships: []
+      }
+      principal_replays: {
+        Row: {
+          account_id: string | null
+          ai_risk_score: number
+          ai_summary: string | null
+          anomalies: Json
+          connection_id: string
+          created_at: string
+          error: string | null
+          event_count: number
+          id: string
+          principal_arn: string
+          raw_sample: Json
+          region: string
+          status: string
+          top_apis: Json
+          user_id: string
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          account_id?: string | null
+          ai_risk_score?: number
+          ai_summary?: string | null
+          anomalies?: Json
+          connection_id: string
+          created_at?: string
+          error?: string | null
+          event_count?: number
+          id?: string
+          principal_arn: string
+          raw_sample?: Json
+          region: string
+          status?: string
+          top_apis?: Json
+          user_id: string
+          window_end: string
+          window_start: string
+        }
+        Update: {
+          account_id?: string | null
+          ai_risk_score?: number
+          ai_summary?: string | null
+          anomalies?: Json
+          connection_id?: string
+          created_at?: string
+          error?: string | null
+          event_count?: number
+          id?: string
+          principal_arn?: string
+          raw_sample?: Json
+          region?: string
+          status?: string
+          top_apis?: Json
+          user_id?: string
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
