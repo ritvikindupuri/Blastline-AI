@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import ReactFlow, { Background, BackgroundVariant, Controls, Handle, MarkerType, MiniMap, Position, type NodeProps } from "reactflow";
 import { ExternalLink, GitBranch, ShieldCheck, Terminal, Globe, KeyRound, Database, ServerCog, Cloud, Network as NetworkIcon, AlertTriangle, type LucideIcon } from "lucide-react";
 import "reactflow/dist/style.css";
+import { RemediationLifecycle } from "@/components/RemediationLifecycle";
 
 type GraphNodeData = {
   label: string;
@@ -107,25 +108,39 @@ export default function AttackPathDetail() {
   const [remediations, setRemediations] = useState<any[]>([]);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [requireSeparateApprover, setRequireSeparateApprover] = useState(false);
+
+  async function reload() {
+    const { data } = await supabase.from("attack_paths").select("*").eq("id", id).single();
+    setPath(data);
+    if (data?.finding_ids?.length) {
+      const { data: f } = await supabase.from("findings").select("*").in("id", data.finding_ids);
+      setFindings(f ?? []);
+      const { data: r } = await supabase
+        .from("remediations")
+        .select("*")
+        .in("finding_id", data.finding_ids)
+        .order("created_at", { ascending: false });
+      setRemediations(r ?? []);
+      // Look up the connection through the audit to read require_separate_approver
+      if (data?.audit_id) {
+        const { data: aud } = await supabase.from("audits").select("connection_id").eq("id", data.audit_id).single();
+        if (aud?.connection_id) {
+          const { data: conn } = await supabase.from("aws_connections").select("require_separate_approver").eq("id", aud.connection_id).single();
+          setRequireSeparateApprover(Boolean(conn?.require_separate_approver));
+        }
+      }
+    } else {
+      setFindings([]);
+      setRemediations([]);
+    }
+  }
 
   useEffect(() => {
-    (async () => {
-      const { data } = await supabase.from("attack_paths").select("*").eq("id", id).single();
-      setPath(data);
-      if (data?.finding_ids?.length) {
-        const { data: f } = await supabase.from("findings").select("*").in("id", data.finding_ids);
-        setFindings(f ?? []);
-        const { data: r } = await supabase
-          .from("remediations")
-          .select("*")
-          .in("finding_id", data.finding_ids)
-          .order("created_at", { ascending: false });
-        setRemediations(r ?? []);
-      } else {
-        setFindings([]);
-        setRemediations([]);
-      }
-    })();
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const { nodes, edges } = useMemo(() => {
@@ -330,6 +345,12 @@ export default function AttackPathDetail() {
                       <div className="mb-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">AWS account changes</div>
                       <pre className="max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{JSON.stringify(changes, null, 2)}</pre>
                     </div>
+                    <RemediationLifecycle
+                      remediation={r}
+                      currentUserId={currentUserId}
+                      requireSeparateApprover={requireSeparateApprover}
+                      onChange={reload}
+                    />
                   </div>
                 );
               })}
