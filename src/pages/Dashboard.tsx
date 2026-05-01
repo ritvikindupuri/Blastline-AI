@@ -5,6 +5,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Plus, Activity, ShieldAlert, Network, Plug } from "lucide-react";
 import { SEV_DOT, type Severity } from "@/lib/severity";
+import { InfoTip } from "@/components/InfoTip";
 
 export default function Dashboard() {
   const [stats, setStats] = useState({ audits: 0, findings: 0, paths: 0, conns: 0 });
@@ -34,10 +35,10 @@ export default function Dashboard() {
   }, []);
 
   const cards = [
-    { label: "Audits", value: stats.audits, icon: Activity, href: "/audits" },
-    { label: "Findings", value: stats.findings, icon: ShieldAlert, href: "/findings" },
-    { label: "Attack Paths", value: stats.paths, icon: Network, href: "/attack-paths" },
-    { label: "AWS Accounts", value: stats.conns, icon: Plug, href: "/connections" },
+    { label: "Audits",        value: stats.audits,    icon: Activity,    href: "/audits",        tip: "Total audit runs across all your AWS accounts (queued, running, completed, failed)." },
+    { label: "Findings",      value: stats.findings,  icon: ShieldAlert, href: "/findings",      tip: "Distinct misconfigurations or risk signals detected. One finding may appear in multiple audits if it persists." },
+    { label: "Attack Paths",  value: stats.paths,     icon: Network,     href: "/attack-paths",  tip: "Chains of findings that link into a real privilege-escalation, exposure, or lateral-movement path." },
+    { label: "AWS Accounts",  value: stats.conns,     icon: Plug,        href: "/connections",   tip: "AWS accounts you've connected. Each runs audits independently and rolls up here." },
   ];
 
   return (
@@ -45,8 +46,8 @@ export default function Dashboard() {
       <div className="space-y-6">
         <div className="flex items-end justify-between">
           <div>
-            <div className="text-xs font-mono text-muted-foreground">Command center</div>
-            <h1 className="font-display text-3xl font-bold">Dashboard</h1>
+            <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Command center</div>
+            <h1 className="font-display text-3xl font-bold flex items-center gap-2">Dashboard <InfoTip>Aggregated view across every AWS account you've connected. Click any card to drill in.</InfoTip></h1>
           </div>
           <Link to="/audits/new"><Button className="gap-2 shadow-glow"><Plus className="h-4 w-4" /> New audit</Button></Link>
         </div>
@@ -55,18 +56,23 @@ export default function Dashboard() {
           {cards.map((c) => (
             <Link key={c.label} to={c.href} className="rounded-xl border border-border bg-card/60 backdrop-blur p-5 shadow-card hover:border-primary/40 transition-colors">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-mono uppercase tracking-wider">{c.label}</span>
+                <span className="text-xs font-mono uppercase tracking-wider flex items-center gap-1.5">
+                  {c.label}
+                  <span onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                    <InfoTip>{c.tip}</InfoTip>
+                  </span>
+                </span>
                 <c.icon className="h-4 w-4" />
               </div>
-              <div className="mt-3 font-display text-3xl font-bold">{c.value}</div>
+              <div className="mt-3 font-display text-3xl font-bold tabular-nums">{c.value}</div>
             </Link>
           ))}
         </div>
 
         <div className="grid lg:grid-cols-2 gap-4">
           <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-5 shadow-card">
-            <div className="text-xs font-mono text-muted-foreground">Severity distribution</div>
-            <h3 className="font-display font-semibold mt-1 mb-4">Findings by severity</h3>
+            <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Severity distribution</div>
+            <h3 className="font-display font-semibold mt-1 mb-4 flex items-center gap-2">Findings by severity <InfoTip>Critical breaks security model immediately. High = exploitable in days. Medium/Low = compliance + hygiene.</InfoTip></h3>
             <div className="space-y-2">
               {(["critical", "high", "medium", "low", "info"] as Severity[]).map((s) => {
                 const v = bySev[s] ?? 0;
