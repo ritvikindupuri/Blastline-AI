@@ -726,6 +726,37 @@ async function runPipeline(audit_id: string, user_id: string) {
     medium: findings.filter((f) => f.severity === "medium").length,
     services_scanned: services,
   };
-  await log(audit_id, user_id, "reporter", `Audit complete · ${summary.total} findings · ${summary.critical} critical · ${summary.high} high`, "final", summary);
-  await admin.from("audits").update({ status: "completed", completed_at: new Date().toISOString(), summary }).eq("id", audit_id);
+
+  // ===== Risk score (composite) =====
+  const score = Math.min(100, Math.round(
+    (summary.critical * 25 + summary.high * 10 + summary.medium * 3) /
+    Math.max(1, services.length) * 1.0
+  ));
+  const grade = score >= 80 ? "F" : score >= 60 ? "D" : score >= 40 ? "C" : score >= 20 ? "B" : "A";
+  await admin.from("account_risk_scores").insert({
+    user_id, connection_id: conn.id, audit_id, account_id: accountId,
+    score, grade, breakdown: { ...summary, regions, controls_evaluated: Object.keys(_controlCache ?? {}).length },
+  });
+
+  // ===== Diff vs previous audit on same connection =====
+  const { data: prev } = await admin.from("audits")
+    .select("id").eq("connection_id", conn.id).eq("status", "completed").lt("created_at", audit?.created_at ?? new Date().toISOString())
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (prev?.id) {
+    const { data: prevF } = await admin.from("findings").select("dedup_key,severity").eq("audit_id", prev.id);
+    const prevKeys = new Set((prevF ?? []).map((f: any) => f.dedup_key));
+    const curKeys = new Set(findings.map((f) => f.dedup_key));
+    const newCount = findings.filter((f) => !prevKeys.has(f.dedup_key)).length;
+    const fixedCount = (prevF ?? []).filter((f: any) => !curKeys.has(f.dedup_key)).length;
+    const unchangedCount = (prevF ?? []).filter((f: any) => curKeys.has(f.dedup_key)).length;
+    await admin.from("audit_diffs").insert({
+      user_id, connection_id: conn.id, current_audit_id: audit_id, previous_audit_id: prev.id,
+      new_count: newCount, fixed_count: fixedCount, regressed_count: 0, unchanged_count: unchangedCount,
+      details: { prevTotal: (prevF ?? []).length, curTotal: findings.length },
+    });
+    await log(audit_id, user_id, "reporter", `Diff vs prior run: +${newCount} new · -${fixedCount} fixed · ${unchangedCount} unchanged`, "diff", { newCount, fixedCount, unchangedCount });
+  }
+
+  await log(audit_id, user_id, "reporter", `Audit complete · ${summary.total} findings · ${summary.critical} critical · ${summary.high} high · risk score ${score} (${grade})`, "final", { ...summary, risk_score: score, grade });
+  await admin.from("audits").update({ status: "completed", completed_at: new Date().toISOString(), summary, risk_score: score } as any).eq("id", audit_id);
 }
