@@ -162,6 +162,7 @@ export type Database = {
           external_id: string | null
           id: string
           last_verified_at: string | null
+          require_separate_approver: boolean
           role_arn: string | null
           secret_access_key: string | null
           updated_at: string
@@ -177,6 +178,7 @@ export type Database = {
           external_id?: string | null
           id?: string
           last_verified_at?: string | null
+          require_separate_approver?: boolean
           role_arn?: string | null
           secret_access_key?: string | null
           updated_at?: string
@@ -192,6 +194,7 @@ export type Database = {
           external_id?: string | null
           id?: string
           last_verified_at?: string | null
+          require_separate_approver?: boolean
           role_arn?: string | null
           secret_access_key?: string | null
           updated_at?: string
@@ -295,63 +298,176 @@ export type Database = {
         }
         Relationships: []
       }
+      remediation_events: {
+        Row: {
+          actor_id: string | null
+          actor_label: string | null
+          after_state: Json | null
+          api_call: string | null
+          attack_node_id: string | null
+          attack_path_id: string | null
+          before_state: Json | null
+          command: string | null
+          created_at: string
+          event_type: string
+          finding_id: string | null
+          id: string
+          notes: string | null
+          remediation_id: string
+          user_id: string
+          verification: Json | null
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_label?: string | null
+          after_state?: Json | null
+          api_call?: string | null
+          attack_node_id?: string | null
+          attack_path_id?: string | null
+          before_state?: Json | null
+          command?: string | null
+          created_at?: string
+          event_type: string
+          finding_id?: string | null
+          id?: string
+          notes?: string | null
+          remediation_id: string
+          user_id: string
+          verification?: Json | null
+        }
+        Update: {
+          actor_id?: string | null
+          actor_label?: string | null
+          after_state?: Json | null
+          api_call?: string | null
+          attack_node_id?: string | null
+          attack_path_id?: string | null
+          before_state?: Json | null
+          command?: string | null
+          created_at?: string
+          event_type?: string
+          finding_id?: string | null
+          id?: string
+          notes?: string | null
+          remediation_id?: string
+          user_id?: string
+          verification?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remediation_events_remediation_id_fkey"
+            columns: ["remediation_id"]
+            isOneToOne: false
+            referencedRelation: "remediations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       remediations: {
         Row: {
           applied: boolean
           approved: boolean
+          approved_at: string | null
+          approved_by: string | null
+          attack_node_id: string | null
+          attack_path_id: string | null
           aws_changes: Json | null
           aws_console_url: string | null
           created_at: string
           description: string | null
           executed_at: string | null
+          executed_by: string | null
           executed_script: string | null
           execution_output: string | null
           execution_status: string
           finding_id: string
           fix_type: string
           id: string
+          lifecycle_state: string
+          proposer_thinking: string | null
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           risk: string
+          rollback_reason: string | null
+          rolled_back_at: string | null
+          rolled_back_by: string | null
           snippet: string
           title: string
           user_id: string
+          verification_result: Json | null
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           applied?: boolean
           approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          attack_node_id?: string | null
+          attack_path_id?: string | null
           aws_changes?: Json | null
           aws_console_url?: string | null
           created_at?: string
           description?: string | null
           executed_at?: string | null
+          executed_by?: string | null
           executed_script?: string | null
           execution_output?: string | null
           execution_status?: string
           finding_id: string
           fix_type: string
           id?: string
+          lifecycle_state?: string
+          proposer_thinking?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           risk?: string
+          rollback_reason?: string | null
+          rolled_back_at?: string | null
+          rolled_back_by?: string | null
           snippet: string
           title: string
           user_id: string
+          verification_result?: Json | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           applied?: boolean
           approved?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
+          attack_node_id?: string | null
+          attack_path_id?: string | null
           aws_changes?: Json | null
           aws_console_url?: string | null
           created_at?: string
           description?: string | null
           executed_at?: string | null
+          executed_by?: string | null
           executed_script?: string | null
           execution_output?: string | null
           execution_status?: string
           finding_id?: string
           fix_type?: string
           id?: string
+          lifecycle_state?: string
+          proposer_thinking?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           risk?: string
+          rollback_reason?: string | null
+          rolled_back_at?: string | null
+          rolled_back_by?: string | null
           snippet?: string
           title?: string
           user_id?: string
+          verification_result?: Json | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: [
           {
