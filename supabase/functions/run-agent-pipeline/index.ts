@@ -216,13 +216,17 @@ async function runPipeline(audit_id: string, user_id: string) {
   }
   const creds: Creds = { ak: conn.access_key_id, sk: conn.secret_access_key };
   const ident = await getCallerIdentity(creds, region);
-  await log(audit_id, user_id, "recon", `Authenticated as ${ident.arn ?? "unknown"} · account ${ident.account ?? "?"}`, "auth");
+  await logExec(audit_id, user_id, "recon", "auth",
+    `Authenticated as ${ident.arn ?? "unknown"} · account ${ident.account ?? "?"}`,
+    `aws sts get-caller-identity --region ${region}`,
+    { Account: ident.account, Arn: ident.arn },
+    "Verifying credentials and resolving the audit target account before enumeration.");
 
   const findings: any[] = [];
 
   // ===== IAM =====
   if (services.includes("iam")) {
-    await log(audit_id, user_id, "recon", "→ enumerating IAM (users, roles, password policy)", "iam");
+    await log(audit_id, user_id, "recon", "Enumerating IAM (users, roles, password policy)", "iam", { thinking: "IAM is the highest-leverage service: weak password policy, stale keys, and wildcard trust policies enable account takeover." });
     const usersXml = await iamCall("ListUsers", creds);
     const rolesXml = await iamCall("ListRoles", creds);
     const userNames = xmlAll(usersXml, "UserName");
@@ -232,7 +236,10 @@ async function runPipeline(audit_id: string, user_id: string) {
       const pp = await iamCall("GetAccountPasswordPolicy", creds);
       if (/<Error>|NoSuchEntity/.test(pp)) pwdPresent = false;
     } catch { pwdPresent = false; }
-    await log(audit_id, user_id, "recon", `IAM: ${userNames.length} users · ${roleBlocks.length} roles · password policy: ${pwdPresent ? "present" : "MISSING"}`, "iam");
+    await logExec(audit_id, user_id, "recon", "iam",
+      `IAM: ${userNames.length} users · ${roleBlocks.length} roles · password policy: ${pwdPresent ? "present" : "MISSING"}`,
+      "aws iam list-users && aws iam list-roles && aws iam get-account-password-policy",
+      { users: userNames.length, roles: roleBlocks.length, passwordPolicyPresent: pwdPresent });
 
     if (!pwdPresent) {
       findings.push(mkFinding(audit_id, user_id, "iam", "IAM-PWD-001", "high", "No IAM account password policy configured",
@@ -275,9 +282,12 @@ async function runPipeline(audit_id: string, user_id: string) {
 
   // ===== S3 =====
   if (services.includes("s3")) {
-    await log(audit_id, user_id, "recon", "→ enumerating S3 (buckets, public access, encryption)", "s3");
+    await log(audit_id, user_id, "recon", "Enumerating S3 (buckets, public access, encryption)", "s3", { thinking: "Public buckets and missing default encryption are the most common data-leak vectors. Checking PublicAccessBlock + policyStatus + encryption config per bucket." });
     const buckets = await s3List(creds);
-    await log(audit_id, user_id, "recon", `S3: ${buckets.length} buckets`, "s3");
+    await logExec(audit_id, user_id, "recon", "s3",
+      `S3: ${buckets.length} buckets discovered`,
+      "aws s3api list-buckets",
+      { buckets: buckets.slice(0, 50) });
     for (const b of buckets.slice(0, 30)) {
       const enc = await s3BucketGet(b, region, "encryption", creds);
       const pab = await s3BucketGet(b, region, "publicAccessBlock", creds);
@@ -302,13 +312,16 @@ async function runPipeline(audit_id: string, user_id: string) {
 
   // ===== EC2 =====
   if (services.includes("ec2")) {
-    await log(audit_id, user_id, "recon", "→ enumerating EC2 (security groups, EBS)", "ec2");
+    await log(audit_id, user_id, "recon", "Enumerating EC2 (security groups, EBS volumes)", "ec2", { thinking: "Looking for SGs that expose admin ports (22/3389/3306/5432) to 0.0.0.0/0 and unencrypted EBS volumes." });
     const sgXml = await ec2Call("DescribeSecurityGroups", region, creds);
     const volXml = await ec2Call("DescribeVolumes", region, creds);
     const sgItems = xmlAll(sgXml, "item");
     const sgCount = (sgXml.match(/<groupId>/g) || []).length;
     const volIds = xmlAll(volXml, "volumeId");
-    await log(audit_id, user_id, "recon", `EC2: ${sgCount} SGs · ${volIds.length} EBS volumes`, "ec2");
+    await logExec(audit_id, user_id, "recon", "ec2",
+      `EC2: ${sgCount} SGs · ${volIds.length} EBS volumes`,
+      `aws ec2 describe-security-groups --region ${region} && aws ec2 describe-volumes --region ${region}`,
+      { securityGroups: sgCount, volumes: volIds.length });
 
     // Naive SG open-port scan
     const openMatches = sgXml.matchAll(/<groupId>(sg-[a-f0-9]+)<\/groupId>([\s\S]*?)(?=<groupId>|<\/SecurityGroupInfo>|$)/g);
@@ -472,7 +485,7 @@ async function runPipeline(audit_id: string, user_id: string) {
   // ===== Remediation =====
   const top = findings.filter((f) => f.severity === "critical" || f.severity === "high").slice(0, 8);
   if (top.length) {
-    await log(audit_id, user_id, "remediation", `→ generating Terraform/CLI fixes for top ${top.length} findings`, "fixes");
+    await log(audit_id, user_id, "remediation", `Generating Terraform/CLI fixes for top ${top.length} findings`, "fixes", { thinking: "Prioritizing critical+high. For each finding I produce a least-privilege fix, a risk grade, and an executable command so an engineer can review before applying." });
     for (const f of top) {
       const remResp = await llm("google/gemini-3-flash-preview", [
         { role: "system", content: "You are an AWS remediation engineer. Output JSON only." },
@@ -486,6 +499,11 @@ async function runPipeline(audit_id: string, user_id: string) {
           title: parsed.title, description: parsed.description,
           fix_type: parsed.fix_type, risk: parsed.risk ?? "medium", snippet: parsed.snippet,
         });
+        await logExec(audit_id, user_id, "remediation", "fix",
+          `Proposed ${parsed.fix_type} fix for ${f.check_id}: ${parsed.title}`,
+          parsed.snippet ?? "(no snippet)",
+          { risk: parsed.risk ?? "medium", resource: f.resource_arn },
+          parsed.description);
       } catch { /* skip */ }
     }
     await log(audit_id, user_id, "remediation", "Fixes generated", "done");
