@@ -3,7 +3,7 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { LayoutDashboard, Plug, Activity, FileSearch, LogOut, Network, Radar, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import logo from "@/assets/trace-logo.png";
+import logo from "@/assets/blastline-logo.png";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();

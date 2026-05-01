@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle2, Radar, KeyRound, Network, ShieldCheck, GitBranch, Terminal } from "lucide-react";
 import { motion } from "framer-motion";
-import logo from "@/assets/trace-logo.png";
+import logo from "@/assets/blastline-logo.png";
 
 const pillars = [
   {
