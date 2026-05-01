@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/layout/AppShell";
-import { AGENT_META, SEV_RING, type Severity } from "@/lib/severity";
-import { Loader2, CheckCircle2, XCircle, Network as NetIcon, ExternalLink, Terminal } from "lucide-react";
+import { AGENT_META, FALLBACK_AGENT, SEV_RING, type Severity } from "@/lib/severity";
+import { Loader2, CheckCircle2, XCircle, Network as NetIcon, ExternalLink, Terminal, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function AuditDetail() {
@@ -79,17 +79,53 @@ export default function AuditDetail() {
               <div className="text-xs font-mono text-muted-foreground">Agent transcript</div>
               <div className="text-xs font-mono text-muted-foreground">{transcripts.length} events</div>
             </div>
-            <div ref={scrollRef} className="max-h-[60vh] overflow-y-auto p-4 space-y-3 font-mono text-xs">
-              {transcripts.length === 0 && <div className="text-muted-foreground">awaiting agents…</div>}
+            <div ref={scrollRef} className="max-h-[60vh] overflow-y-auto p-3 space-y-2 font-mono text-xs">
+              {transcripts.length === 0 && <div className="text-muted-foreground p-3">awaiting agents…</div>}
               {transcripts.map((t) => {
-                const meta = AGENT_META[t.agent] ?? { label: t.agent, color: "text-foreground", icon: "•" };
+                const meta = AGENT_META[t.agent] ?? { ...FALLBACK_AGENT, label: t.agent };
+                const Icon = meta.Icon;
+                const data = t.data as any;
+                const cmd = data?.command || data?.cmd;
+                const output = data?.output || data?.result;
+                const thinking = data?.thinking || data?.reasoning;
                 return (
-                  <div key={t.id} className="flex gap-3">
-                    <div className="w-32 shrink-0">
-                      <span className={meta.color}>{meta.icon} {meta.label}</span>
-                      {t.phase && <div className="text-muted-foreground text-[10px]">{t.phase}</div>}
+                  <div key={t.id} className="rounded-md border border-border/60 bg-background/40 hover:border-border transition-colors">
+                    <div className="flex items-start gap-3 px-3 py-2">
+                      <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${meta.ring}`}>
+                        <Icon className={`h-3.5 w-3.5 ${meta.color}`} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className={`text-[11px] font-semibold uppercase tracking-wider ${meta.color}`}>{meta.label}</span>
+                          {t.phase && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                              <ChevronRight className="h-2.5 w-2.5" />{t.phase}
+                            </span>
+                          )}
+                          <span className="ml-auto text-[10px] text-muted-foreground/70">
+                            {new Date(t.created_at).toLocaleTimeString([], { hour12: false })}
+                          </span>
+                        </div>
+                        <div className="mt-1 whitespace-pre-wrap text-foreground/90 leading-relaxed">{t.content}</div>
+                        {thinking && (
+                          <div className="mt-2 rounded border border-accent/20 bg-accent/5 px-2 py-1.5 text-[11px] text-accent/90 italic">
+                            <span className="not-italic font-semibold mr-1">thinking:</span>{thinking}
+                          </div>
+                        )}
+                        {cmd && (
+                          <div className="mt-2">
+                            <div className="text-[9px] uppercase tracking-wider text-muted-foreground mb-0.5">$ command</div>
+                            <pre className="rounded border border-border bg-background/80 p-2 text-[11px] leading-relaxed text-primary overflow-auto whitespace-pre-wrap break-words">{cmd}</pre>
+                          </div>
+                        )}
+                        {output && (
+                          <div className="mt-1.5">
+                            <div className="text-[9px] uppercase tracking-wider text-muted-foreground mb-0.5">↳ output</div>
+                            <pre className="rounded border border-border bg-background/80 p-2 text-[11px] leading-relaxed text-foreground/80 max-h-40 overflow-auto whitespace-pre-wrap break-words">{typeof output === "string" ? output : JSON.stringify(output, null, 2)}</pre>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex-1 whitespace-pre-wrap text-foreground/90">{t.content}</div>
                   </div>
                 );
               })}

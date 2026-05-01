@@ -26,12 +26,38 @@ export const SEV_DOT: Record<Severity, string> = {
   info: "bg-sev-info",
 };
 
-export const AGENT_META: Record<string, { label: string; color: string; icon: string }> = {
-  recon: { label: "Recon", color: "text-primary", icon: "🛰️" },
-  misconfig: { label: "Misconfig", color: "text-accent", icon: "🔍" },
-  attackpath: { label: "AttackPath", color: "text-sev-critical", icon: "⚡" },
-  blastradius: { label: "BlastRadius", color: "text-sev-high", icon: "💥" },
-  remediation: { label: "Remediation", color: "text-success", icon: "🛠️" },
-  critic: { label: "Critic", color: "text-sev-medium", icon: "⚖️" },
-  reporter: { label: "Reporter", color: "text-primary-glow", icon: "📋" },
+import {
+  Radar,
+  ScanSearch,
+  Crosshair,
+  Flame,
+  Wrench,
+  Scale,
+  ClipboardList,
+  Bot,
+  type LucideIcon,
+} from "lucide-react";
+
+export type AgentMeta = {
+  label: string;
+  color: string;
+  ring: string;
+  Icon: LucideIcon;
+};
+
+export const AGENT_META: Record<string, AgentMeta> = {
+  recon:        { label: "Recon",        color: "text-primary",        ring: "border-primary/40 bg-primary/10",         Icon: Radar },
+  misconfig:    { label: "Misconfig",    color: "text-accent",         ring: "border-accent/40 bg-accent/10",           Icon: ScanSearch },
+  attackpath:   { label: "AttackPath",   color: "text-sev-critical",   ring: "border-sev-critical/40 bg-sev-critical/10", Icon: Crosshair },
+  blastradius:  { label: "BlastRadius",  color: "text-sev-high",       ring: "border-sev-high/40 bg-sev-high/10",       Icon: Flame },
+  remediation:  { label: "Remediation", color: "text-success",        ring: "border-success/40 bg-success/10",         Icon: Wrench },
+  critic:       { label: "Critic",       color: "text-sev-medium",     ring: "border-sev-medium/40 bg-sev-medium/10",   Icon: Scale },
+  reporter:     { label: "Reporter",     color: "text-primary-glow",   ring: "border-primary/40 bg-primary/10",         Icon: ClipboardList },
+};
+
+export const FALLBACK_AGENT: AgentMeta = {
+  label: "Agent",
+  color: "text-foreground",
+  ring: "border-border bg-background/50",
+  Icon: Bot,
 };
