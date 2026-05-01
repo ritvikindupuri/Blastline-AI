@@ -8,6 +8,31 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Plug, CheckCircle2, XCircle, Loader2, Trash2, ShieldCheck, ExternalLink, Eye, EyeOff, Copy, Info, Filter } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { InfoTip } from "@/components/InfoTip";
+
+const MIN_PRIVILEGE_POLICY = `{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BlastlineReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "iam:Get*", "iam:List*", "iam:GenerateCredentialReport", "iam:GenerateServiceLastAccessedDetails",
+        "s3:GetBucket*", "s3:GetObject*", "s3:ListAllMyBuckets", "s3:GetEncryptionConfiguration",
+        "ec2:Describe*", "lambda:Get*", "lambda:List*",
+        "rds:Describe*", "dynamodb:Describe*", "dynamodb:List*",
+        "kms:Describe*", "kms:List*", "kms:GetKeyRotationStatus",
+        "secretsmanager:Describe*", "secretsmanager:List*",
+        "ecr:Describe*", "ecr:List*", "eks:Describe*", "eks:List*",
+        "cloudtrail:Describe*", "cloudtrail:Get*", "cloudtrail:List*", "cloudtrail:LookupEvents",
+        "guardduty:Get*", "guardduty:List*",
+        "config:Describe*", "config:Get*", "config:List*",
+        "sts:GetCallerIdentity"
+      ],
+      "Resource": "*"
+    }
+  ]
+}`;
 
 const AWS_POLICIES = {
   SecurityAudit: {
@@ -121,21 +146,44 @@ export default function Connections() {
     <AppShell>
       <div className="space-y-6 max-w-5xl">
         <div>
-          <div className="text-xs font-mono text-muted-foreground">Configure access</div>
-          <h1 className="font-display text-3xl font-bold">AWS Accounts</h1>
+          <div className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Configure access</div>
+          <h1 className="font-display text-3xl font-bold flex items-center gap-2">
+            AWS Accounts
+            <InfoTip>Blastline runs <span className="font-mono">read-only</span> against your AWS account. Connect each account with its own IAM user + access key, scoped to the policies below.</InfoTip>
+          </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Connect an AWS account using an IAM user's access key + secret. Trace only needs read-only permissions to audit your posture.
+            Three steps: create an IAM user → attach permissions → paste the access key here. Takes about 2 minutes.
           </p>
+        </div>
+
+        {/* Stepper */}
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { n: 1, t: "Create IAM user", s: "in AWS console" },
+            { n: 2, t: "Attach permissions", s: "managed policy or JSON" },
+            { n: 3, t: "Paste access key", s: "Blastline verifies it" },
+          ].map((s) => (
+            <div key={s.n} className="rounded-md border border-border bg-card/40 px-3 py-2.5 flex items-center gap-3">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/10 font-mono text-xs text-primary">{s.n}</div>
+              <div className="min-w-0">
+                <div className="text-sm font-medium leading-tight">{s.t}</div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{s.s}</div>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Audit preset */}
         <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-6 space-y-4 shadow-card">
           <div className="flex items-center gap-2 text-primary">
             <Filter className="h-5 w-5" />
-            <h3 className="font-display font-semibold">Audit preset</h3>
+            <h3 className="font-display font-semibold flex items-center gap-2">
+              Audit preset
+              <InfoTip>Pick which AWS service families Blastline should scan. We only recommend the AWS-managed policies you actually need based on your selection — minimum privilege.</InfoTip>
+            </h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            Pick the services Trace should audit. We'll recommend the minimal set of AWS-managed policies to attach.
+            Pick the services Blastline should audit. We'll recommend the minimal set of AWS-managed policies to attach.
           </p>
           <div className="grid sm:grid-cols-2 gap-2">
             {AUDIT_SERVICES.map((s) => {
@@ -178,7 +226,10 @@ export default function Connections() {
         <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-6 space-y-5 shadow-card">
           <div className="flex items-center gap-2 text-primary">
             <ShieldCheck className="h-5 w-5" />
-            <h3 className="font-display font-semibold">Create a Trace IAM user in AWS</h3>
+            <h3 className="font-display font-semibold flex items-center gap-2">
+              Create a Blastline IAM user in AWS
+              <InfoTip>Each AWS account you connect needs its own dedicated IAM user with only the read permissions Blastline requires. Don't reuse an existing power-user.</InfoTip>
+            </h3>
           </div>
 
           <ol className="space-y-4 text-sm leading-relaxed">
@@ -190,10 +241,14 @@ export default function Connections() {
               and click <span className="font-mono text-foreground">Create user</span>.
             </li>
             <li>
-              <span className="font-mono text-primary">[2]</span> Name the user <span className="font-mono text-foreground">trace-auditor</span>. Leave “Provide user access to the AWS Management Console” <span className="font-mono text-foreground">unchecked</span>. Click <span className="font-mono text-foreground">Next</span>, then on the permissions screen click <span className="font-mono text-foreground">Next</span> again (skip — we'll attach permissions by ARN after the user exists). Click <span className="font-mono text-foreground">Create user</span>.
+              <span className="font-mono text-primary">[2]</span> Name the user{" "}
+              <span className="font-mono text-foreground inline-flex items-center gap-1">blastline-auditor
+                <button type="button" onClick={() => copy("blastline-auditor", "Username")} className="text-muted-foreground hover:text-primary"><Copy className="h-3 w-3" /></button>
+              </span>. Leave “Provide user access to the AWS Management Console” <span className="font-mono text-foreground">unchecked</span>. Click <span className="font-mono text-foreground">Next</span>, then <span className="font-mono text-foreground">Next</span> again on the permissions screen (we'll attach permissions on the next step). Click <span className="font-mono text-foreground">Create user</span>.
             </li>
             <li>
-              <span className="font-mono text-primary">[3]</span> Open the new <span className="font-mono text-foreground">trace-auditor</span> user, go to the <span className="font-mono text-foreground">Permissions</span> tab and choose <span className="font-mono text-foreground">Add permissions → Attach policies directly</span>. Attach the policies below.
+              <span className="font-mono text-primary">[3]</span> Open the new <span className="font-mono text-foreground">blastline-auditor</span> user, go to the <span className="font-mono text-foreground">Permissions</span> tab and choose <span className="font-mono text-foreground">Add permissions → Attach policies directly</span>. Attach the AWS-managed policies below
+              <InfoTip>You can also paste the minimum-privilege custom policy further down — that's the most-secure option.</InfoTip>.
               <div className="mt-3 space-y-2">
                 {(Object.values(AWS_POLICIES)).map((p) => {
                   const isRecommended = recommended.has(p.name as "SecurityAudit" | "ReadOnlyAccess");
@@ -238,10 +293,24 @@ export default function Connections() {
               </div>
             </li>
             <li>
+              <span className="font-mono text-primary">[3b]</span> <span className="text-muted-foreground">(Most secure, optional)</span> Instead of the managed policies above, attach this minimum-privilege custom policy
+              <InfoTip>Same coverage as SecurityAudit + ReadOnlyAccess but scoped to only the API actions Blastline calls. Recommended for production.</InfoTip>:
+              <div className="mt-2 rounded-md border border-border bg-background/60 overflow-hidden">
+                <div className="flex items-center justify-between border-b border-border bg-background/80 px-3 py-1.5">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">BlastlineReadOnly · IAM policy JSON</span>
+                  <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => copy(MIN_PRIVILEGE_POLICY, "Policy JSON")}>
+                    <Copy className="h-3 w-3" /> Copy JSON
+                  </Button>
+                </div>
+                <pre className="p-3 font-mono text-[11px] leading-relaxed overflow-x-auto whitespace-pre max-h-64">{MIN_PRIVILEGE_POLICY}</pre>
+              </div>
+              <div className="mt-2 text-xs text-muted-foreground">In AWS: <span className="font-mono text-foreground">IAM → Policies → Create policy → JSON</span> → paste → name it <span className="font-mono text-foreground">BlastlineReadOnly</span> → attach to <span className="font-mono text-foreground">blastline-auditor</span>.</div>
+            </li>
+            <li>
               <span className="font-mono text-primary">[4]</span> <span className="text-muted-foreground">(Faster, optional)</span> Or attach both ARNs from the AWS CLI:
-              <pre className="mt-2 rounded-md border border-border bg-background/60 p-3 font-mono text-xs overflow-x-auto whitespace-pre">{`aws iam attach-user-policy --user-name trace-auditor \\
+              <pre className="mt-2 rounded-md border border-border bg-background/60 p-3 font-mono text-xs overflow-x-auto whitespace-pre">{`aws iam attach-user-policy --user-name blastline-auditor \\
   --policy-arn arn:aws:iam::aws:policy/SecurityAudit
-aws iam attach-user-policy --user-name trace-auditor \\
+aws iam attach-user-policy --user-name blastline-auditor \\
   --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess`}</pre>
             </li>
             <li>
@@ -249,24 +318,25 @@ aws iam attach-user-policy --user-name trace-auditor \\
             </li>
             <li>
               <span className="font-mono text-primary">[6]</span> Copy the <span className="font-mono text-foreground">Access key ID</span> and <span className="font-mono text-foreground">Secret access key</span> and paste them below.
+              <InfoTip>The secret is shown only once in AWS. If you lose it, deactivate the key and create a new one — never email or share the secret.</InfoTip>
             </li>
           </ol>
 
           <div className="grid md:grid-cols-2 gap-3 pt-2 border-t border-border">
             <div>
-              <Label htmlFor="lbl">Account label</Label>
+              <Label htmlFor="lbl" className="flex items-center gap-1.5">Account label <InfoTip>Friendly name shown across Blastline (e.g. "Production", "EU staging").</InfoTip></Label>
               <Input id="lbl" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Production" />
             </div>
             <div>
-              <Label htmlFor="reg">Default region</Label>
+              <Label htmlFor="reg" className="flex items-center gap-1.5">Default region <InfoTip>Region used when an audit doesn't specify one. Audits can still target other regions per run.</InfoTip></Label>
               <Input id="reg" value={region} onChange={(e) => setRegion(e.target.value)} placeholder="us-east-1" />
             </div>
             <div>
-              <Label htmlFor="ak">Access Key ID</Label>
+              <Label htmlFor="ak" className="flex items-center gap-1.5">Access Key ID <InfoTip>Starts with <span className="font-mono">AKIA</span> (long-lived) or <span className="font-mono">ASIA</span> (temporary STS).</InfoTip></Label>
               <Input id="ak" value={accessKeyId} onChange={(e) => setAccessKeyId(e.target.value)} placeholder="AKIA…" className="font-mono" autoComplete="off" />
             </div>
             <div>
-              <Label htmlFor="sk">Secret Access Key</Label>
+              <Label htmlFor="sk" className="flex items-center gap-1.5">Secret Access Key <InfoTip>Stored encrypted at rest. Never displayed in logs or shared with model providers.</InfoTip></Label>
               <div className="relative">
                 <Input id="sk" type={showSecret ? "text" : "password"} value={secretAccessKey} onChange={(e) => setSecretAccessKey(e.target.value)} placeholder="••••••••••••••••" className="font-mono pr-9" autoComplete="off" />
                 <button type="button" onClick={() => setShowSecret((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
@@ -283,7 +353,7 @@ aws iam attach-user-policy --user-name trace-auditor \\
         </div>
 
         <div className="space-y-3">
-          <h3 className="font-display font-semibold text-lg">Connected accounts</h3>
+          <h3 className="font-display font-semibold text-lg flex items-center gap-2">Connected accounts <InfoTip>Each row is one AWS account. Re-verify periodically to confirm credentials still work.</InfoTip></h3>
           {conns.length === 0 && <div className="text-sm text-muted-foreground">No connections yet.</div>}
           {conns.map((c) => (
             <div key={c.id} className="rounded-xl border border-border bg-card/60 backdrop-blur p-4">
@@ -306,7 +376,7 @@ aws iam attach-user-policy --user-name trace-auditor \\
               </div>
               <div className="mt-3 flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
                 <div>
-                  <div className="text-xs font-medium">Require separate approver for remediations</div>
+                  <div className="text-xs font-medium flex items-center gap-1.5">Require separate approver for remediations <InfoTip>Two-person rule. The user who proposes a remediation cannot approve it. Strongly recommended for production accounts.</InfoTip></div>
                   <div className="text-[11px] text-muted-foreground">When on, the user who proposes a fix can&apos;t also approve it. Recommended for production.</div>
                 </div>
                 <label className="inline-flex items-center cursor-pointer">

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import logo from "@/assets/trace-logo.png";
+import logo from "@/assets/blastline-logo.png";
 
 export default function Auth() {
   const [params] = useSearchParams();
