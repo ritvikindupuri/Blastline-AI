@@ -77,7 +77,7 @@ export function RemediationLifecycle({ remediation: r, currentUserId, requireSep
     if (next === "verified") {
       patch.verification_result = { verified_at: new Date().toISOString(), method: "manual", note: "Operator confirmed change in AWS console" };
     }
-    const { error } = await supabase.from("remediations").update(patch).eq("id", r.id);
+    const { error } = await supabase.from("remediations").update(patch as any).eq("id", r.id);
     setBusy(null);
     if (error) {
       alert(error.message);
