@@ -234,7 +234,7 @@ export default function AuditDetail() {
                     </Button>
                   </div>
                   <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.executed_script || r.snippet}</pre>
-                  <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.execution_output || "Not executed from Trace yet."}</pre>
+                  <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.execution_output || "Not executed from Blastline yet."}</pre>
                 </div>
               );
             })}

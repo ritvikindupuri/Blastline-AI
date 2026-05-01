@@ -418,7 +418,7 @@ export default function AttackPathDetail() {
                       </div>
                       <div>
                         <div className="mb-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Agent output</div>
-                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.execution_output || "Remediation has not been executed from Trace yet."}</pre>
+                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.execution_output || "Remediation has not been executed from Blastline yet."}</pre>
                       </div>
                     </div>
                     <div className="mt-3">
