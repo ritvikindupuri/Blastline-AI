@@ -259,7 +259,7 @@ export default function BlastRadius() {
                   <Label className="text-xs flex items-center gap-1.5">Resource type <InfoTip>What kind of AWS resource you're about to change. We'll show you exactly where to find its ARN.</InfoTip></Label>
                   <div className="mt-1 grid grid-cols-2 gap-1.5">
                     {SERVICES.map((s) => (
-                      <button key={s.key} type="button" onClick={() => { setServiceKey(s.key); setChangeId(""); setChange(""); }} className={`text-left rounded-md border px-2.5 py-2 text-xs transition-colors ${serviceKey === s.key ? "border-primary/60 bg-primary/5 text-foreground" : "border-border bg-background/40 hover:bg-background/60 text-muted-foreground"}`}>
+                      <button key={s.key} type="button" onClick={() => { setServiceKey(s.key); setChangeId(""); setChange(""); setPickerItems([]); setPickerError(null); setPickerRegion(null); }} className={`text-left rounded-md border px-2.5 py-2 text-xs transition-colors ${serviceKey === s.key ? "border-primary/60 bg-primary/5 text-foreground" : "border-border bg-background/40 hover:bg-background/60 text-muted-foreground"}`}>
                         {s.label}
                       </button>
                     ))}
