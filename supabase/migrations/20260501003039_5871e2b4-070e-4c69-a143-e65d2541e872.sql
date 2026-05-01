@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.remediation_lifecycle_audit() FROM PUBLIC, anon, authenticated;
