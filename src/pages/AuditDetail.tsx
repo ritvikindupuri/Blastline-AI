@@ -3,8 +3,34 @@ import { Link, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/layout/AppShell";
 import { AGENT_META, FALLBACK_AGENT, SEV_RING, type Severity } from "@/lib/severity";
-import { Loader2, CheckCircle2, XCircle, Network as NetIcon, ExternalLink, Terminal, ChevronRight, FileDown, FileSpreadsheet } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Network as NetIcon, ExternalLink, Terminal, ChevronRight, FileDown, FileSpreadsheet, PlayCircle, ShieldCheck, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+function awsConsoleFor(finding?: any, remediation?: any) {
+  if (remediation?.aws_console_url) return remediation.aws_console_url;
+  const region = finding?.region || "us-east-1";
+  const service = String(finding?.service || "").toLowerCase();
+  const arn: string = finding?.resource_arn || "";
+  if (service === "iam" && arn) {
+    if (arn.includes(":user/")) return `https://us-east-1.console.aws.amazon.com/iam/home#/users/details/${encodeURIComponent(arn.split(":user/")[1])}`;
+    if (arn.includes(":role/")) return `https://us-east-1.console.aws.amazon.com/iam/home#/roles/details/${encodeURIComponent(arn.split(":role/")[1])}`;
+    if (arn.includes("password-policy")) return `https://us-east-1.console.aws.amazon.com/iam/home#/account_settings`;
+    return "https://us-east-1.console.aws.amazon.com/iam/home#/home";
+  }
+  if (service === "iam") return "https://us-east-1.console.aws.amazon.com/iam/home#/home";
+  if (service === "s3" && arn.startsWith("arn:aws:s3:::")) {
+    const bucket = arn.replace("arn:aws:s3:::", "").split("/")[0];
+    return `https://s3.console.aws.amazon.com/s3/buckets/${encodeURIComponent(bucket)}?region=${region}&tab=permissions`;
+  }
+  if (service === "s3") return "https://s3.console.aws.amazon.com/s3/home";
+  if (service === "ec2") return `https://${region}.console.aws.amazon.com/ec2/home?region=${region}`;
+  if (service === "rds") return `https://${region}.console.aws.amazon.com/rds/home?region=${region}#databases:`;
+  if (service === "lambda") return `https://${region}.console.aws.amazon.com/lambda/home?region=${region}#/functions`;
+  if (service === "cloudtrail") return `https://${region}.console.aws.amazon.com/cloudtrailv2/home?region=${region}#/dashboard`;
+  if (service === "guardduty") return `https://${region}.console.aws.amazon.com/guardduty/home?region=${region}#/findings`;
+  if (service === "kms") return `https://${region}.console.aws.amazon.com/kms/home?region=${region}#/kms/keys`;
+  return `https://${region}.console.aws.amazon.com/console/home?region=${region}`;
+}
 
 export default function AuditDetail() {
   const { id } = useParams();
