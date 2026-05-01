@@ -124,7 +124,7 @@ export default function Connections() {
           <div className="text-xs font-mono text-muted-foreground">Configure access</div>
           <h1 className="font-display text-3xl font-bold">AWS Accounts</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Connect an AWS account using an IAM user's access key + secret. Trace only needs read-only permissions to audit your posture.
+            Connect an AWS account using an IAM user's access key + secret. Blastline only needs read-only permissions to audit your posture.
           </p>
         </div>
 
@@ -178,7 +178,7 @@ export default function Connections() {
         <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-6 space-y-5 shadow-card">
           <div className="flex items-center gap-2 text-primary">
             <ShieldCheck className="h-5 w-5" />
-            <h3 className="font-display font-semibold">Create a Trace IAM user in AWS</h3>
+            <h3 className="font-display font-semibold">Create a Blastline IAM user in AWS</h3>
           </div>
 
           <ol className="space-y-4 text-sm leading-relaxed">
@@ -190,10 +190,10 @@ export default function Connections() {
               and click <span className="font-mono text-foreground">Create user</span>.
             </li>
             <li>
-              <span className="font-mono text-primary">[2]</span> Name the user <span className="font-mono text-foreground">trace-auditor</span>. Leave “Provide user access to the AWS Management Console” <span className="font-mono text-foreground">unchecked</span>. Click <span className="font-mono text-foreground">Next</span>, then on the permissions screen click <span className="font-mono text-foreground">Next</span> again (skip — we'll attach permissions by ARN after the user exists). Click <span className="font-mono text-foreground">Create user</span>.
+              <span className="font-mono text-primary">[2]</span> Name the user <span className="font-mono text-foreground">blastline-auditor</span>. Leave “Provide user access to the AWS Management Console” <span className="font-mono text-foreground">unchecked</span>. Click <span className="font-mono text-foreground">Next</span>, then on the permissions screen click <span className="font-mono text-foreground">Next</span> again (skip — we'll attach permissions by ARN after the user exists). Click <span className="font-mono text-foreground">Create user</span>.
             </li>
             <li>
-              <span className="font-mono text-primary">[3]</span> Open the new <span className="font-mono text-foreground">trace-auditor</span> user, go to the <span className="font-mono text-foreground">Permissions</span> tab and choose <span className="font-mono text-foreground">Add permissions → Attach policies directly</span>. Attach the policies below.
+              <span className="font-mono text-primary">[3]</span> Open the new <span className="font-mono text-foreground">blastline-auditor</span> user, go to the <span className="font-mono text-foreground">Permissions</span> tab and choose <span className="font-mono text-foreground">Add permissions → Attach policies directly</span>. Attach the policies below.
               <div className="mt-3 space-y-2">
                 {(Object.values(AWS_POLICIES)).map((p) => {
                   const isRecommended = recommended.has(p.name as "SecurityAudit" | "ReadOnlyAccess");
@@ -239,9 +239,9 @@ export default function Connections() {
             </li>
             <li>
               <span className="font-mono text-primary">[4]</span> <span className="text-muted-foreground">(Faster, optional)</span> Or attach both ARNs from the AWS CLI:
-              <pre className="mt-2 rounded-md border border-border bg-background/60 p-3 font-mono text-xs overflow-x-auto whitespace-pre">{`aws iam attach-user-policy --user-name trace-auditor \\
+              <pre className="mt-2 rounded-md border border-border bg-background/60 p-3 font-mono text-xs overflow-x-auto whitespace-pre">{`aws iam attach-user-policy --user-name blastline-auditor \\
   --policy-arn arn:aws:iam::aws:policy/SecurityAudit
-aws iam attach-user-policy --user-name trace-auditor \\
+aws iam attach-user-policy --user-name blastline-auditor \\
   --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess`}</pre>
             </li>
             <li>
