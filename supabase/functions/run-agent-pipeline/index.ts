@@ -261,14 +261,31 @@ async function logExec(audit_id: string, user_id: string, agent: string, phase: 
   });
 }
 
+let _controlCache: Record<string, any> | null = null;
+async function loadControls() {
+  if (_controlCache) return _controlCache;
+  const { data } = await admin.from("control_mappings").select("*");
+  _controlCache = {};
+  for (const c of data ?? []) _controlCache[c.check_id] = c;
+  return _controlCache;
+}
+
 function mkFinding(audit_id: string, user_id: string, service: string, check_id: string, severity: string,
-  title: string, description: string, resource_arn: string | null | undefined, region: string, extra: any) {
+  title: string, description: string, resource_arn: string | null | undefined, region: string, extra: any, accountId?: string | null) {
+  const ctl = _controlCache?.[check_id] ?? {};
+  const controls = {
+    cis: ctl.cis ?? [], nist: ctl.nist ?? [], soc2: ctl.soc2 ?? [], pci: ctl.pci ?? [], mitre: ctl.mitre ?? [],
+  };
+  const dedup_key = `${accountId ?? "?"}:${region}:${check_id}:${resource_arn ?? "global"}`;
   return {
     audit_id, user_id, service, check_id, severity, title, description,
     resource_arn: resource_arn ?? null, region,
-    framework_refs: extra.framework_refs ?? null,
+    framework_refs: extra.framework_refs ?? controls,
     evidence: extra.evidence ?? null,
     confidence: 0.9,
+    account_id: accountId ?? null,
+    controls,
+    dedup_key,
   };
 }
 
