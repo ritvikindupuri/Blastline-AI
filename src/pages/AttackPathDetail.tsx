@@ -51,14 +51,29 @@ const awsConsoleFor = (finding?: any, remediation?: any) => {
   if (remediation?.aws_console_url) return remediation.aws_console_url;
   const region = finding?.region || "us-east-1";
   const service = String(finding?.service || "").toLowerCase();
-  if (service === "iam") return "https://console.aws.amazon.com/iam/home";
+  const arn: string = finding?.resource_arn || "";
+  // Deep-link to the specific resource when we have an ARN
+  if (service === "iam" && arn) {
+    if (arn.includes(":user/")) return `https://us-east-1.console.aws.amazon.com/iam/home#/users/details/${encodeURIComponent(arn.split(":user/")[1])}`;
+    if (arn.includes(":role/")) return `https://us-east-1.console.aws.amazon.com/iam/home#/roles/details/${encodeURIComponent(arn.split(":role/")[1])}`;
+    if (arn.includes(":policy/")) return `https://us-east-1.console.aws.amazon.com/iam/home#/policies/details/${encodeURIComponent(arn)}`;
+    if (arn.includes("password-policy")) return `https://us-east-1.console.aws.amazon.com/iam/home#/account_settings`;
+    return "https://us-east-1.console.aws.amazon.com/iam/home#/home";
+  }
+  if (service === "iam") return "https://us-east-1.console.aws.amazon.com/iam/home#/home";
+  if (service === "s3" && arn.startsWith("arn:aws:s3:::")) {
+    const bucket = arn.replace("arn:aws:s3:::", "").split("/")[0];
+    return `https://s3.console.aws.amazon.com/s3/buckets/${encodeURIComponent(bucket)}?region=${region}`;
+  }
   if (service === "s3") return "https://s3.console.aws.amazon.com/s3/home";
-  if (service === "ec2") return `https://${region}.console.aws.amazon.com/ec2/home?region=${region}`;
-  if (service === "rds") return `https://${region}.console.aws.amazon.com/rds/home?region=${region}`;
-  if (service === "lambda") return `https://${region}.console.aws.amazon.com/lambda/home?region=${region}`;
-  if (service === "cloudtrail") return `https://${region}.console.aws.amazon.com/cloudtrail/home?region=${region}`;
-  if (service === "guardduty") return `https://${region}.console.aws.amazon.com/guardduty/home?region=${region}`;
-  return "https://console.aws.amazon.com/console/home";
+  if (service === "ec2") return `https://${region}.console.aws.amazon.com/ec2/home?region=${region}#Home:`;
+  if (service === "rds") return `https://${region}.console.aws.amazon.com/rds/home?region=${region}#databases:`;
+  if (service === "lambda") return `https://${region}.console.aws.amazon.com/lambda/home?region=${region}#/functions`;
+  if (service === "cloudtrail") return `https://${region}.console.aws.amazon.com/cloudtrailv2/home?region=${region}#/dashboard`;
+  if (service === "guardduty") return `https://${region}.console.aws.amazon.com/guardduty/home?region=${region}#/findings`;
+  if (service === "kms") return `https://${region}.console.aws.amazon.com/kms/home?region=${region}#/kms/keys`;
+  if (service === "secretsmanager") return `https://${region}.console.aws.amazon.com/secretsmanager/listsecrets?region=${region}`;
+  return `https://${region}.console.aws.amazon.com/console/home?region=${region}`;
 };
 
 function AttackNode({ data, selected }: NodeProps<GraphNodeData>) {
@@ -417,8 +432,11 @@ export default function AttackPathDetail() {
                         <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.executed_script || r.snippet}</pre>
                       </div>
                       <div>
-                        <div className="mb-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Agent output</div>
-                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.execution_output || "Remediation has not been executed from Blastline yet."}</pre>
+                        <div className="mb-1 flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                          <span>Agent output</span>
+                          <span className="rounded border border-border px-1.5 py-0.5 text-[9px]">{(r.execution_status || "not_applied").replace(/_/g, " ")}</span>
+                        </div>
+                        <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed text-muted-foreground">{r.execution_output || "No execution output yet — this remediation is a proposed fix. Approve and run it from the Remediations page to apply it to your AWS account, or copy the snippet above and apply it manually."}</pre>
                       </div>
                     </div>
                     <div className="mt-3">
