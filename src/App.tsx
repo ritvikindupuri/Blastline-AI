@@ -17,6 +17,9 @@ import AttackPathDetail from "./pages/AttackPathDetail.tsx";
 import BlastRadius from "./pages/BlastRadius.tsx";
 import EffectivePermissions from "./pages/EffectivePermissions.tsx";
 import PlanReview from "./pages/PlanReview.tsx";
+import PrincipalReplay from "./pages/PrincipalReplay.tsx";
+import Drift from "./pages/Drift.tsx";
+import PRBot from "./pages/PRBot.tsx";
 import { AuthProvider } from "./lib/auth";
 import { RequireAuth } from "./components/layout/RequireAuth";
 
@@ -43,6 +46,9 @@ const App = () => (
             <Route path="/blast-radius" element={<RequireAuth><BlastRadius /></RequireAuth>} />
             <Route path="/effective-permissions" element={<RequireAuth><EffectivePermissions /></RequireAuth>} />
             <Route path="/plan-review" element={<RequireAuth><PlanReview /></RequireAuth>} />
+            <Route path="/principal-replay" element={<RequireAuth><PrincipalReplay /></RequireAuth>} />
+            <Route path="/drift" element={<RequireAuth><Drift /></RequireAuth>} />
+            <Route path="/pr-bot" element={<RequireAuth><PRBot /></RequireAuth>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
