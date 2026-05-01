@@ -157,6 +157,7 @@ export default function PRBot() {
                   Permissions → Repository → set:
                   <div className="mt-2 grid grid-cols-2 gap-1.5">
                     <Perm name="Administration" level="Read & write" hint="install the webhook" />
+                    <Perm name="Webhooks" level="Read & write" hint="required on fine-grained tokens" />
                     <Perm name="Pull requests" level="Read & write" hint="post review comments" />
                     <Perm name="Contents" level="Read-only" hint="read terraform plans" />
                     <Perm name="Metadata" level="Read-only" hint="auto-included" />
