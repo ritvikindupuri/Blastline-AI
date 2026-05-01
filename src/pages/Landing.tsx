@@ -56,13 +56,13 @@ export default function Landing() {
         </div>
 
         <motion.div className="max-w-3xl relative" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: "easeOut" }}>
-          <div className="text-xs font-mono text-primary uppercase tracking-[0.24em] mb-6">Pre-execution reasoning · AWS</div>
+          <div className="text-xs font-mono text-primary uppercase tracking-[0.24em] mb-6">Pre-merge reasoning · AWS</div>
           <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-semibold leading-[1.04] tracking-tight">
-            Know what breaks<br />
-            <span className="text-primary">before</span> you ship.
+            Know what your IAM change breaks<br />
+            <span className="text-primary">before</span> the PR merges.
           </h1>
           <p className="mt-7 text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed">
-            Simulate blast radius. Walk effective IAM. Trace real attack paths. For AWS security engineers.
+            Paste a <span className="font-mono text-foreground">terraform plan</span>. Get a per-resource ship / warn / block verdict, grounded in your live AWS audit. For AWS security engineers.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-3">
             <Link to="/auth?mode=signup">
