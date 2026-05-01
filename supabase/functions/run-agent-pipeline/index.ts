@@ -165,6 +165,88 @@ async function ctCall(action: "DescribeTrails" | "GetTrailStatus", region: strin
   return r.json().catch(() => ({}));
 }
 
+// ===== Expanded service helpers =====
+async function kmsListKeys(region: string, creds: Creds): Promise<any[]> {
+  const r = await awsRequest({
+    service: "kms", region, creds, body: JSON.stringify({}),
+    headers: { "content-type": "application/x-amz-json-1.1", "x-amz-target": "TrentService.ListKeys" },
+  });
+  const j = await r.json().catch(() => ({}));
+  return j?.Keys ?? [];
+}
+async function kmsRotationStatus(keyId: string, region: string, creds: Creds): Promise<{ enabled: boolean; ok: boolean }> {
+  const r = await awsRequest({
+    service: "kms", region, creds, body: JSON.stringify({ KeyId: keyId }),
+    headers: { "content-type": "application/x-amz-json-1.1", "x-amz-target": "TrentService.GetKeyRotationStatus" },
+  });
+  const j = await r.json().catch(() => ({}));
+  return { enabled: Boolean(j?.KeyRotationEnabled), ok: r.ok };
+}
+async function ecrRepos(region: string, creds: Creds): Promise<any[]> {
+  const r = await awsRequest({
+    service: "ecr", region, creds, body: JSON.stringify({}),
+    headers: { "content-type": "application/x-amz-json-1.1", "x-amz-target": "AmazonEC2ContainerRegistry_V20150921.DescribeRepositories" },
+  });
+  const j = await r.json().catch(() => ({}));
+  return j?.repositories ?? [];
+}
+async function smList(region: string, creds: Creds): Promise<any[]> {
+  const r = await awsRequest({
+    service: "secretsmanager", region, creds, body: JSON.stringify({}),
+    headers: { "content-type": "application/x-amz-json-1.1", "x-amz-target": "secretsmanager.ListSecrets" },
+  });
+  const j = await r.json().catch(() => ({}));
+  return j?.SecretList ?? [];
+}
+async function eksList(region: string, creds: Creds): Promise<string[]> {
+  const r = await awsRequest({ service: "eks", region, method: "GET", path: "/clusters", creds });
+  const j = await r.json().catch(() => ({}));
+  return j?.clusters ?? [];
+}
+async function eksDescribe(name: string, region: string, creds: Creds): Promise<any> {
+  const r = await awsRequest({ service: "eks", region, method: "GET", path: `/clusters/${encodeURIComponent(name)}`, creds });
+  const j = await r.json().catch(() => ({}));
+  return j?.cluster ?? {};
+}
+async function vpcFlowLogs(region: string, creds: Creds): Promise<{ flowLogIds: string[]; vpcIds: string[] }> {
+  const vpcsXml = await ec2Call("DescribeVpcs", region, creds);
+  const flXml = await ec2Call("DescribeFlowLogs", region, creds);
+  return {
+    vpcIds: xmlAll(vpcsXml, "vpcId"),
+    flowLogIds: xmlAll(flXml, "flowLogId"),
+  };
+}
+async function gdFindings(detectorId: string, region: string, creds: Creds): Promise<any[]> {
+  const r = await awsRequest({
+    service: "guardduty", region, method: "POST",
+    path: `/detector/${detectorId}/findings`,
+    creds,
+    body: JSON.stringify({ MaxResults: 50 }),
+    headers: { "content-type": "application/json" },
+  });
+  const j = await r.json().catch(() => ({}));
+  const ids: string[] = j?.FindingIds ?? [];
+  if (!ids.length) return [];
+  const get = await awsRequest({
+    service: "guardduty", region, method: "POST",
+    path: `/detector/${detectorId}/findings/get`,
+    creds,
+    body: JSON.stringify({ FindingIds: ids }),
+    headers: { "content-type": "application/json" },
+  });
+  const gj = await get.json().catch(() => ({}));
+  return gj?.Findings ?? [];
+}
+async function ctLookup(region: string, creds: Creds, eventName: string): Promise<any[]> {
+  const r = await awsRequest({
+    service: "cloudtrail", region, creds,
+    body: JSON.stringify({ LookupAttributes: [{ AttributeKey: "EventName", AttributeValue: eventName }], MaxResults: 10 }),
+    headers: { "content-type": "application/x-amz-json-1.1", "x-amz-target": "com.amazonaws.cloudtrail.v20131101.CloudTrail_20131101.LookupEvents" },
+  });
+  const j = await r.json().catch(() => ({}));
+  return j?.Events ?? [];
+}
+
 // ============================================================
 async function log(audit_id: string, user_id: string, agent: string, content: string, phase?: string, data?: any) {
   await admin.from("agent_transcripts").insert({ audit_id, user_id, agent, content, phase, data: data ?? null, seq: ++_seq });
