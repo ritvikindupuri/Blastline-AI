@@ -530,7 +530,7 @@ async function runPipeline(audit_id: string, user_id: string) {
 
   // ===== GuardDuty =====
   if (services.includes("guardduty")) {
-    await log(audit_id, user_id, "recon", "→ checking GuardDuty", "guardduty");
+    await log(audit_id, user_id, "recon", "Checking GuardDuty + correlating live findings", "guardduty", { thinking: "Listing detectors per region; if enabled, pulling top 50 active findings to correlate against misconfig posture." });
     const det = await gdCall(region, creds);
     const ids: string[] = det?.DetectorIds ?? [];
     if (ids.length === 0) {
@@ -538,7 +538,111 @@ async function runPipeline(audit_id: string, user_id: string) {
         `GuardDuty disabled in ${region}`, "No threat detection enabled in this region.",
         `arn:aws:guardduty:${region}:${conn.aws_account_id}:*`, region,
         { framework_refs: { nist: "SI-4" }, evidence: { detectors: 0 } }));
+    } else {
+      for (const detId of ids.slice(0, 1)) {
+        const live = await gdFindings(detId, region, creds);
+        await logExec(audit_id, user_id, "recon", "guardduty",
+          `GuardDuty ${detId}: ${live.length} live findings`,
+          `aws guardduty list-findings --detector-id ${detId} --region ${region}`,
+          { sample: live.slice(0, 3).map((f: any) => ({ Title: f.Title, Severity: f.Severity, Type: f.Type })) });
+        for (const f of live.slice(0, 20)) {
+          const sev = (f.Severity ?? 0) >= 7 ? "critical" : (f.Severity ?? 0) >= 4 ? "high" : "medium";
+          findings.push(mkFinding(audit_id, user_id, "guardduty", "GD-CORRELATION", sev,
+            `GuardDuty: ${f.Title}`, f.Description ?? "GuardDuty correlated finding.",
+            f.Resource?.AccessKeyDetails?.PrincipalId ?? f.Resource?.InstanceDetails?.InstanceId ?? null,
+            region, { evidence: { type: f.Type, severity: f.Severity, region: f.Region } }));
+        }
+      }
     }
+  }
+
+  // ===== KMS =====
+  if (services.includes("kms")) {
+    await log(audit_id, user_id, "recon", "Auditing KMS keys + rotation policy", "kms", { thinking: "Customer-managed KMS keys must rotate yearly; absence is a CIS 3.8 violation and a stale-blast-radius risk." });
+    const keys = await kmsListKeys(region, creds);
+    await logExec(audit_id, user_id, "recon", "kms", `KMS: ${keys.length} keys`, `aws kms list-keys --region ${region}`, { keys: keys.length });
+    for (const k of keys.slice(0, 25)) {
+      const rot = await kmsRotationStatus(k.KeyId, region, creds);
+      if (rot.ok && !rot.enabled) {
+        findings.push(mkFinding(audit_id, user_id, "kms", "KMS-ROTATION-OFF", "medium",
+          `KMS key ${k.KeyId} rotation disabled`, "Annual key rotation is disabled — long-lived keys increase blast radius if compromised.",
+          k.KeyArn, region, { evidence: { rotation: false } }));
+      }
+    }
+  }
+
+  // ===== ECR =====
+  if (services.includes("ecr")) {
+    await log(audit_id, user_id, "recon", "Auditing ECR repositories + scan-on-push", "ecr", { thinking: "Container images without scan-on-push ship known CVEs to production." });
+    const repos = await ecrRepos(region, creds);
+    await logExec(audit_id, user_id, "recon", "ecr", `ECR: ${repos.length} repos`, `aws ecr describe-repositories --region ${region}`, { repos: repos.length });
+    for (const r of repos.slice(0, 30)) {
+      if (!r.imageScanningConfiguration?.scanOnPush) {
+        findings.push(mkFinding(audit_id, user_id, "ecr", "ECR-NO-SCAN", "medium",
+          `ECR repo ${r.repositoryName} missing scan-on-push`, "Pushed images bypass vulnerability scanning.",
+          r.repositoryArn, region, { evidence: { scanOnPush: false } }));
+      }
+    }
+  }
+
+  // ===== Secrets Manager =====
+  if (services.includes("secrets") || services.includes("secretsmanager")) {
+    await log(audit_id, user_id, "recon", "Auditing Secrets Manager rotation policy", "secrets", { thinking: "Secrets without rotation become long-lived credentials — same risk class as stale IAM keys." });
+    const list = await smList(region, creds);
+    await logExec(audit_id, user_id, "recon", "secrets", `Secrets: ${list.length}`, `aws secretsmanager list-secrets --region ${region}`, { secrets: list.length });
+    for (const s of list.slice(0, 30)) {
+      if (s.RotationEnabled !== true) {
+        findings.push(mkFinding(audit_id, user_id, "secretsmanager", "SECRETS-NO-ROTATION", "medium",
+          `Secret ${s.Name} has rotation disabled`, "Long-lived secret without automatic rotation.",
+          s.ARN, region, { evidence: { rotation: false } }));
+      }
+    }
+  }
+
+  // ===== EKS =====
+  if (services.includes("eks")) {
+    await log(audit_id, user_id, "recon", "Auditing EKS clusters (public API)", "eks", { thinking: "Publicly accessible EKS API endpoints expose the control plane to internet attackers." });
+    const clusters = await eksList(region, creds);
+    await logExec(audit_id, user_id, "recon", "eks", `EKS: ${clusters.length} clusters`, `aws eks list-clusters --region ${region}`, { clusters });
+    for (const name of clusters.slice(0, 10)) {
+      const c = await eksDescribe(name, region, creds);
+      const access = c?.resourcesVpcConfig?.endpointPublicAccess;
+      if (access === true) {
+        findings.push(mkFinding(audit_id, user_id, "eks", "EKS-PUBLIC-API", "high",
+          `EKS cluster ${name} has public API endpoint`, "Kubernetes API server is reachable from the internet.",
+          c.arn, region, { evidence: { endpointPublicAccess: true } }));
+      }
+    }
+  }
+
+  // ===== VPC flow logs =====
+  if (services.includes("vpc")) {
+    await log(audit_id, user_id, "recon", "Checking VPC flow logs coverage", "vpc", { thinking: "Without VPC flow logs, network-layer incident response is blind." });
+    const fl = await vpcFlowLogs(region, creds);
+    await logExec(audit_id, user_id, "recon", "vpc", `VPCs: ${fl.vpcIds.length} · flow logs: ${fl.flowLogIds.length}`, `aws ec2 describe-vpcs && aws ec2 describe-flow-logs --region ${region}`, fl);
+    if (fl.vpcIds.length > 0 && fl.flowLogIds.length === 0) {
+      findings.push(mkFinding(audit_id, user_id, "vpc", "VPC-FLOWLOGS-OFF", "high",
+        `No VPC flow logs in ${region}`, "Network-level audit trail is unavailable — IR will be blind.",
+        `arn:aws:ec2:${region}:${accountId}:vpc/*`, region, { evidence: fl }));
+    }
+  }
+
+  // ===== CloudTrail correlation: root logins =====
+  if (services.includes("cloudtrail")) {
+    try {
+      const events = await ctLookup(region, creds, "ConsoleLogin");
+      const roots = events.filter((e: any) => /"userIdentity"\s*:\s*\{[^}]*"type"\s*:\s*"Root"/.test(e.CloudTrailEvent ?? ""));
+      await logExec(audit_id, user_id, "recon", "cloudtrail",
+        `CloudTrail ConsoleLogin events: ${events.length} · root: ${roots.length}`,
+        `aws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=ConsoleLogin --region ${region}`,
+        { totalConsoleLogins: events.length, rootLogins: roots.length });
+      if (roots.length > 0) {
+        findings.push(mkFinding(audit_id, user_id, "cloudtrail", "CT-ROOT-LOGIN", "critical",
+          `Root account console login detected (${roots.length} events)`,
+          "The root user logged in via console — should never happen in normal operations.",
+          `arn:aws:iam::${accountId}:root`, region, { evidence: { count: roots.length } }));
+      }
+    } catch { /* ignore */ }
   }
 
   await log(audit_id, user_id, "misconfig", `Misconfig agent evaluated checks · ${findings.length} findings raised`, "summary");
