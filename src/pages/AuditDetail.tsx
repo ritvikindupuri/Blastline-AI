@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/layout/AppShell";
 import { AGENT_META, FALLBACK_AGENT, SEV_RING, type Severity } from "@/lib/severity";
-import { Loader2, CheckCircle2, XCircle, Network as NetIcon, ExternalLink, Terminal, ChevronRight } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Network as NetIcon, ExternalLink, Terminal, ChevronRight, FileDown, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function AuditDetail() {
@@ -72,6 +72,38 @@ export default function AuditDetail() {
             "text-primary border-primary/30 bg-primary/10"
           }`}>{audit?.status ?? "loading"}</span>
         </div>
+
+        {audit?.status === "completed" && (
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="sm" variant="outline" className="gap-2">
+              <a
+                href={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-audit?audit_id=${id}&format=pdf`}
+                target="_blank" rel="noreferrer"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  const { data: s } = await supabase.auth.getSession();
+                  const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-audit?audit_id=${id}&format=pdf`, { headers: { Authorization: `Bearer ${s.session?.access_token}` } });
+                  const blob = await r.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a"); a.href = url; a.download = `audit-${id}.pdf`; a.click(); URL.revokeObjectURL(url);
+                }}
+              ><FileDown className="h-4 w-4" /> Executive PDF</a>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="gap-2">
+              <a
+                href="#"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  const { data: s } = await supabase.auth.getSession();
+                  const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-audit?audit_id=${id}&format=csv`, { headers: { Authorization: `Bearer ${s.session?.access_token}` } });
+                  const blob = await r.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a"); a.href = url; a.download = `audit-${id}.csv`; a.click(); URL.revokeObjectURL(url);
+                }}
+              ><FileSpreadsheet className="h-4 w-4" /> Engineer CSV</a>
+            </Button>
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-5 gap-4">
           <div className="lg:col-span-3 rounded-xl border border-border bg-card/60 backdrop-blur shadow-card overflow-hidden">

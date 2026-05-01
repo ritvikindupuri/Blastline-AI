@@ -11,6 +11,7 @@ const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const admin = createClient(SUPABASE_URL, SERVICE);
 
 let _seq = 0;
+let _currentAccountId: string | null = null;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -165,6 +166,88 @@ async function ctCall(action: "DescribeTrails" | "GetTrailStatus", region: strin
   return r.json().catch(() => ({}));
 }
 
+// ===== Expanded service helpers =====
+async function kmsListKeys(region: string, creds: Creds): Promise<any[]> {
+  const r = await awsRequest({
+    service: "kms", region, creds, body: JSON.stringify({}),
+    headers: { "content-type": "application/x-amz-json-1.1", "x-amz-target": "TrentService.ListKeys" },
+  });
+  const j = await r.json().catch(() => ({}));
+  return j?.Keys ?? [];
+}
+async function kmsRotationStatus(keyId: string, region: string, creds: Creds): Promise<{ enabled: boolean; ok: boolean }> {
+  const r = await awsRequest({
+    service: "kms", region, creds, body: JSON.stringify({ KeyId: keyId }),
+    headers: { "content-type": "application/x-amz-json-1.1", "x-amz-target": "TrentService.GetKeyRotationStatus" },
+  });
+  const j = await r.json().catch(() => ({}));
+  return { enabled: Boolean(j?.KeyRotationEnabled), ok: r.ok };
+}
+async function ecrRepos(region: string, creds: Creds): Promise<any[]> {
+  const r = await awsRequest({
+    service: "ecr", region, creds, body: JSON.stringify({}),
+    headers: { "content-type": "application/x-amz-json-1.1", "x-amz-target": "AmazonEC2ContainerRegistry_V20150921.DescribeRepositories" },
+  });
+  const j = await r.json().catch(() => ({}));
+  return j?.repositories ?? [];
+}
+async function smList(region: string, creds: Creds): Promise<any[]> {
+  const r = await awsRequest({
+    service: "secretsmanager", region, creds, body: JSON.stringify({}),
+    headers: { "content-type": "application/x-amz-json-1.1", "x-amz-target": "secretsmanager.ListSecrets" },
+  });
+  const j = await r.json().catch(() => ({}));
+  return j?.SecretList ?? [];
+}
+async function eksList(region: string, creds: Creds): Promise<string[]> {
+  const r = await awsRequest({ service: "eks", region, method: "GET", path: "/clusters", creds });
+  const j = await r.json().catch(() => ({}));
+  return j?.clusters ?? [];
+}
+async function eksDescribe(name: string, region: string, creds: Creds): Promise<any> {
+  const r = await awsRequest({ service: "eks", region, method: "GET", path: `/clusters/${encodeURIComponent(name)}`, creds });
+  const j = await r.json().catch(() => ({}));
+  return j?.cluster ?? {};
+}
+async function vpcFlowLogs(region: string, creds: Creds): Promise<{ flowLogIds: string[]; vpcIds: string[] }> {
+  const vpcsXml = await ec2Call("DescribeVpcs", region, creds);
+  const flXml = await ec2Call("DescribeFlowLogs", region, creds);
+  return {
+    vpcIds: xmlAll(vpcsXml, "vpcId"),
+    flowLogIds: xmlAll(flXml, "flowLogId"),
+  };
+}
+async function gdFindings(detectorId: string, region: string, creds: Creds): Promise<any[]> {
+  const r = await awsRequest({
+    service: "guardduty", region, method: "POST",
+    path: `/detector/${detectorId}/findings`,
+    creds,
+    body: JSON.stringify({ MaxResults: 50 }),
+    headers: { "content-type": "application/json" },
+  });
+  const j = await r.json().catch(() => ({}));
+  const ids: string[] = j?.FindingIds ?? [];
+  if (!ids.length) return [];
+  const get = await awsRequest({
+    service: "guardduty", region, method: "POST",
+    path: `/detector/${detectorId}/findings/get`,
+    creds,
+    body: JSON.stringify({ FindingIds: ids }),
+    headers: { "content-type": "application/json" },
+  });
+  const gj = await get.json().catch(() => ({}));
+  return gj?.Findings ?? [];
+}
+async function ctLookup(region: string, creds: Creds, eventName: string): Promise<any[]> {
+  const r = await awsRequest({
+    service: "cloudtrail", region, creds,
+    body: JSON.stringify({ LookupAttributes: [{ AttributeKey: "EventName", AttributeValue: eventName }], MaxResults: 10 }),
+    headers: { "content-type": "application/x-amz-json-1.1", "x-amz-target": "com.amazonaws.cloudtrail.v20131101.CloudTrail_20131101.LookupEvents" },
+  });
+  const j = await r.json().catch(() => ({}));
+  return j?.Events ?? [];
+}
+
 // ============================================================
 async function log(audit_id: string, user_id: string, agent: string, content: string, phase?: string, data?: any) {
   await admin.from("agent_transcripts").insert({ audit_id, user_id, agent, content, phase, data: data ?? null, seq: ++_seq });
@@ -179,14 +262,32 @@ async function logExec(audit_id: string, user_id: string, agent: string, phase: 
   });
 }
 
+let _controlCache: Record<string, any> | null = null;
+async function loadControls() {
+  if (_controlCache) return _controlCache;
+  const { data } = await admin.from("control_mappings").select("*");
+  _controlCache = {};
+  for (const c of data ?? []) _controlCache[c.check_id] = c;
+  return _controlCache;
+}
+
 function mkFinding(audit_id: string, user_id: string, service: string, check_id: string, severity: string,
-  title: string, description: string, resource_arn: string | null | undefined, region: string, extra: any) {
+  title: string, description: string, resource_arn: string | null | undefined, region: string, extra: any, accountId?: string | null) {
+  const acct = accountId ?? _currentAccountId ?? null;
+  const ctl = _controlCache?.[check_id] ?? {};
+  const controls = {
+    cis: ctl.cis ?? [], nist: ctl.nist ?? [], soc2: ctl.soc2 ?? [], pci: ctl.pci ?? [], mitre: ctl.mitre ?? [],
+  };
+  const dedup_key = `${acct ?? "?"}:${region}:${check_id}:${resource_arn ?? "global"}`;
   return {
     audit_id, user_id, service, check_id, severity, title, description,
     resource_arn: resource_arn ?? null, region,
-    framework_refs: extra.framework_refs ?? null,
+    framework_refs: extra.framework_refs ?? controls,
     evidence: extra.evidence ?? null,
     confidence: 0.9,
+    account_id: acct,
+    controls,
+    dedup_key,
   };
 }
 
@@ -208,6 +309,8 @@ async function runPipeline(audit_id: string, user_id: string) {
   const conn = (audit as any).aws_connections;
   const services: string[] = audit?.scope?.services ?? [];
   const region = conn.default_region;
+  const regions: string[] = (audit?.regions && audit.regions.length) ? audit.regions : (conn.allowed_regions ?? [region]);
+  await loadControls();
 
   await log(audit_id, user_id, "recon", `Booting recon agent · target ${conn.aws_account_id ?? "(pending)"} · region ${region}`, "init");
 
@@ -216,11 +319,13 @@ async function runPipeline(audit_id: string, user_id: string) {
   }
   const creds: Creds = { ak: conn.access_key_id, sk: conn.secret_access_key };
   const ident = await getCallerIdentity(creds, region);
+  const accountId = ident.account ?? conn.aws_account_id ?? null;
+  _currentAccountId = accountId;
   await logExec(audit_id, user_id, "recon", "auth",
     `Authenticated as ${ident.arn ?? "unknown"} · account ${ident.account ?? "?"}`,
     `aws sts get-caller-identity --region ${region}`,
-    { Account: ident.account, Arn: ident.arn },
-    "Verifying credentials and resolving the audit target account before enumeration.");
+    { Account: ident.account, Arn: ident.arn, regions },
+    `Verifying credentials. Will scan ${regions.length} region(s): ${regions.join(", ")}.`);
 
   const findings: any[] = [];
 
@@ -425,7 +530,7 @@ async function runPipeline(audit_id: string, user_id: string) {
 
   // ===== GuardDuty =====
   if (services.includes("guardduty")) {
-    await log(audit_id, user_id, "recon", "→ checking GuardDuty", "guardduty");
+    await log(audit_id, user_id, "recon", "Checking GuardDuty + correlating live findings", "guardduty", { thinking: "Listing detectors per region; if enabled, pulling top 50 active findings to correlate against misconfig posture." });
     const det = await gdCall(region, creds);
     const ids: string[] = det?.DetectorIds ?? [];
     if (ids.length === 0) {
@@ -433,7 +538,111 @@ async function runPipeline(audit_id: string, user_id: string) {
         `GuardDuty disabled in ${region}`, "No threat detection enabled in this region.",
         `arn:aws:guardduty:${region}:${conn.aws_account_id}:*`, region,
         { framework_refs: { nist: "SI-4" }, evidence: { detectors: 0 } }));
+    } else {
+      for (const detId of ids.slice(0, 1)) {
+        const live = await gdFindings(detId, region, creds);
+        await logExec(audit_id, user_id, "recon", "guardduty",
+          `GuardDuty ${detId}: ${live.length} live findings`,
+          `aws guardduty list-findings --detector-id ${detId} --region ${region}`,
+          { sample: live.slice(0, 3).map((f: any) => ({ Title: f.Title, Severity: f.Severity, Type: f.Type })) });
+        for (const f of live.slice(0, 20)) {
+          const sev = (f.Severity ?? 0) >= 7 ? "critical" : (f.Severity ?? 0) >= 4 ? "high" : "medium";
+          findings.push(mkFinding(audit_id, user_id, "guardduty", "GD-CORRELATION", sev,
+            `GuardDuty: ${f.Title}`, f.Description ?? "GuardDuty correlated finding.",
+            f.Resource?.AccessKeyDetails?.PrincipalId ?? f.Resource?.InstanceDetails?.InstanceId ?? null,
+            region, { evidence: { type: f.Type, severity: f.Severity, region: f.Region } }));
+        }
+      }
     }
+  }
+
+  // ===== KMS =====
+  if (services.includes("kms")) {
+    await log(audit_id, user_id, "recon", "Auditing KMS keys + rotation policy", "kms", { thinking: "Customer-managed KMS keys must rotate yearly; absence is a CIS 3.8 violation and a stale-blast-radius risk." });
+    const keys = await kmsListKeys(region, creds);
+    await logExec(audit_id, user_id, "recon", "kms", `KMS: ${keys.length} keys`, `aws kms list-keys --region ${region}`, { keys: keys.length });
+    for (const k of keys.slice(0, 25)) {
+      const rot = await kmsRotationStatus(k.KeyId, region, creds);
+      if (rot.ok && !rot.enabled) {
+        findings.push(mkFinding(audit_id, user_id, "kms", "KMS-ROTATION-OFF", "medium",
+          `KMS key ${k.KeyId} rotation disabled`, "Annual key rotation is disabled — long-lived keys increase blast radius if compromised.",
+          k.KeyArn, region, { evidence: { rotation: false } }));
+      }
+    }
+  }
+
+  // ===== ECR =====
+  if (services.includes("ecr")) {
+    await log(audit_id, user_id, "recon", "Auditing ECR repositories + scan-on-push", "ecr", { thinking: "Container images without scan-on-push ship known CVEs to production." });
+    const repos = await ecrRepos(region, creds);
+    await logExec(audit_id, user_id, "recon", "ecr", `ECR: ${repos.length} repos`, `aws ecr describe-repositories --region ${region}`, { repos: repos.length });
+    for (const r of repos.slice(0, 30)) {
+      if (!r.imageScanningConfiguration?.scanOnPush) {
+        findings.push(mkFinding(audit_id, user_id, "ecr", "ECR-NO-SCAN", "medium",
+          `ECR repo ${r.repositoryName} missing scan-on-push`, "Pushed images bypass vulnerability scanning.",
+          r.repositoryArn, region, { evidence: { scanOnPush: false } }));
+      }
+    }
+  }
+
+  // ===== Secrets Manager =====
+  if (services.includes("secrets") || services.includes("secretsmanager")) {
+    await log(audit_id, user_id, "recon", "Auditing Secrets Manager rotation policy", "secrets", { thinking: "Secrets without rotation become long-lived credentials — same risk class as stale IAM keys." });
+    const list = await smList(region, creds);
+    await logExec(audit_id, user_id, "recon", "secrets", `Secrets: ${list.length}`, `aws secretsmanager list-secrets --region ${region}`, { secrets: list.length });
+    for (const s of list.slice(0, 30)) {
+      if (s.RotationEnabled !== true) {
+        findings.push(mkFinding(audit_id, user_id, "secretsmanager", "SECRETS-NO-ROTATION", "medium",
+          `Secret ${s.Name} has rotation disabled`, "Long-lived secret without automatic rotation.",
+          s.ARN, region, { evidence: { rotation: false } }));
+      }
+    }
+  }
+
+  // ===== EKS =====
+  if (services.includes("eks")) {
+    await log(audit_id, user_id, "recon", "Auditing EKS clusters (public API)", "eks", { thinking: "Publicly accessible EKS API endpoints expose the control plane to internet attackers." });
+    const clusters = await eksList(region, creds);
+    await logExec(audit_id, user_id, "recon", "eks", `EKS: ${clusters.length} clusters`, `aws eks list-clusters --region ${region}`, { clusters });
+    for (const name of clusters.slice(0, 10)) {
+      const c = await eksDescribe(name, region, creds);
+      const access = c?.resourcesVpcConfig?.endpointPublicAccess;
+      if (access === true) {
+        findings.push(mkFinding(audit_id, user_id, "eks", "EKS-PUBLIC-API", "high",
+          `EKS cluster ${name} has public API endpoint`, "Kubernetes API server is reachable from the internet.",
+          c.arn, region, { evidence: { endpointPublicAccess: true } }));
+      }
+    }
+  }
+
+  // ===== VPC flow logs =====
+  if (services.includes("vpc")) {
+    await log(audit_id, user_id, "recon", "Checking VPC flow logs coverage", "vpc", { thinking: "Without VPC flow logs, network-layer incident response is blind." });
+    const fl = await vpcFlowLogs(region, creds);
+    await logExec(audit_id, user_id, "recon", "vpc", `VPCs: ${fl.vpcIds.length} · flow logs: ${fl.flowLogIds.length}`, `aws ec2 describe-vpcs && aws ec2 describe-flow-logs --region ${region}`, fl);
+    if (fl.vpcIds.length > 0 && fl.flowLogIds.length === 0) {
+      findings.push(mkFinding(audit_id, user_id, "vpc", "VPC-FLOWLOGS-OFF", "high",
+        `No VPC flow logs in ${region}`, "Network-level audit trail is unavailable — IR will be blind.",
+        `arn:aws:ec2:${region}:${accountId}:vpc/*`, region, { evidence: fl }));
+    }
+  }
+
+  // ===== CloudTrail correlation: root logins =====
+  if (services.includes("cloudtrail")) {
+    try {
+      const events = await ctLookup(region, creds, "ConsoleLogin");
+      const roots = events.filter((e: any) => /"userIdentity"\s*:\s*\{[^}]*"type"\s*:\s*"Root"/.test(e.CloudTrailEvent ?? ""));
+      await logExec(audit_id, user_id, "recon", "cloudtrail",
+        `CloudTrail ConsoleLogin events: ${events.length} · root: ${roots.length}`,
+        `aws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=ConsoleLogin --region ${region}`,
+        { totalConsoleLogins: events.length, rootLogins: roots.length });
+      if (roots.length > 0) {
+        findings.push(mkFinding(audit_id, user_id, "cloudtrail", "CT-ROOT-LOGIN", "critical",
+          `Root account console login detected (${roots.length} events)`,
+          "The root user logged in via console — should never happen in normal operations.",
+          `arn:aws:iam::${accountId}:root`, region, { evidence: { count: roots.length } }));
+      }
+    } catch { /* ignore */ }
   }
 
   await log(audit_id, user_id, "misconfig", `Misconfig agent evaluated checks · ${findings.length} findings raised`, "summary");
@@ -517,6 +726,37 @@ async function runPipeline(audit_id: string, user_id: string) {
     medium: findings.filter((f) => f.severity === "medium").length,
     services_scanned: services,
   };
-  await log(audit_id, user_id, "reporter", `Audit complete · ${summary.total} findings · ${summary.critical} critical · ${summary.high} high`, "final", summary);
-  await admin.from("audits").update({ status: "completed", completed_at: new Date().toISOString(), summary }).eq("id", audit_id);
+
+  // ===== Risk score (composite) =====
+  const score = Math.min(100, Math.round(
+    (summary.critical * 25 + summary.high * 10 + summary.medium * 3) /
+    Math.max(1, services.length) * 1.0
+  ));
+  const grade = score >= 80 ? "F" : score >= 60 ? "D" : score >= 40 ? "C" : score >= 20 ? "B" : "A";
+  await admin.from("account_risk_scores").insert({
+    user_id, connection_id: conn.id, audit_id, account_id: accountId,
+    score, grade, breakdown: { ...summary, regions, controls_evaluated: Object.keys(_controlCache ?? {}).length },
+  });
+
+  // ===== Diff vs previous audit on same connection =====
+  const { data: prev } = await admin.from("audits")
+    .select("id").eq("connection_id", conn.id).eq("status", "completed").lt("created_at", audit?.created_at ?? new Date().toISOString())
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (prev?.id) {
+    const { data: prevF } = await admin.from("findings").select("dedup_key,severity").eq("audit_id", prev.id);
+    const prevKeys = new Set((prevF ?? []).map((f: any) => f.dedup_key));
+    const curKeys = new Set(findings.map((f) => f.dedup_key));
+    const newCount = findings.filter((f) => !prevKeys.has(f.dedup_key)).length;
+    const fixedCount = (prevF ?? []).filter((f: any) => !curKeys.has(f.dedup_key)).length;
+    const unchangedCount = (prevF ?? []).filter((f: any) => curKeys.has(f.dedup_key)).length;
+    await admin.from("audit_diffs").insert({
+      user_id, connection_id: conn.id, current_audit_id: audit_id, previous_audit_id: prev.id,
+      new_count: newCount, fixed_count: fixedCount, regressed_count: 0, unchanged_count: unchangedCount,
+      details: { prevTotal: (prevF ?? []).length, curTotal: findings.length },
+    });
+    await log(audit_id, user_id, "reporter", `Diff vs prior run: +${newCount} new · -${fixedCount} fixed · ${unchangedCount} unchanged`, "diff", { newCount, fixedCount, unchangedCount });
+  }
+
+  await log(audit_id, user_id, "reporter", `Audit complete · ${summary.total} findings · ${summary.critical} critical · ${summary.high} high · risk score ${score} (${grade})`, "final", { ...summary, risk_score: score, grade });
+  await admin.from("audits").update({ status: "completed", completed_at: new Date().toISOString(), summary, risk_score: score } as any).eq("id", audit_id);
 }

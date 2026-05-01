@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_groups: {
+        Row: {
+          color: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          tags: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          tags?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          tags?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      account_risk_scores: {
+        Row: {
+          account_id: string | null
+          audit_id: string
+          breakdown: Json
+          connection_id: string
+          created_at: string
+          grade: string
+          id: string
+          score: number
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          audit_id: string
+          breakdown?: Json
+          connection_id: string
+          created_at?: string
+          grade: string
+          id?: string
+          score: number
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          audit_id?: string
+          breakdown?: Json
+          connection_id?: string
+          created_at?: string
+          grade?: string
+          id?: string
+          score?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       agent_transcripts: {
         Row: {
           agent: string
@@ -105,13 +174,60 @@ export type Database = {
           },
         ]
       }
+      audit_diffs: {
+        Row: {
+          connection_id: string
+          created_at: string
+          current_audit_id: string
+          details: Json
+          fixed_count: number
+          id: string
+          new_count: number
+          previous_audit_id: string | null
+          regressed_count: number
+          unchanged_count: number
+          user_id: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          current_audit_id: string
+          details?: Json
+          fixed_count?: number
+          id?: string
+          new_count?: number
+          previous_audit_id?: string | null
+          regressed_count?: number
+          unchanged_count?: number
+          user_id: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          current_audit_id?: string
+          details?: Json
+          fixed_count?: number
+          id?: string
+          new_count?: number
+          previous_audit_id?: string | null
+          regressed_count?: number
+          unchanged_count?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       audits: {
         Row: {
+          account_ids: string[]
           completed_at: string | null
           connection_id: string
           created_at: string
           error: string | null
+          group_id: string | null
           id: string
+          multi_account: boolean
+          regions: string[]
+          risk_score: number | null
           scope: Json | null
           started_at: string
           status: string
@@ -119,11 +235,16 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          account_ids?: string[]
           completed_at?: string | null
           connection_id: string
           created_at?: string
           error?: string | null
+          group_id?: string | null
           id?: string
+          multi_account?: boolean
+          regions?: string[]
+          risk_score?: number | null
           scope?: Json | null
           started_at?: string
           status?: string
@@ -131,11 +252,16 @@ export type Database = {
           user_id: string
         }
         Update: {
+          account_ids?: string[]
           completed_at?: string | null
           connection_id?: string
           created_at?: string
           error?: string | null
+          group_id?: string | null
           id?: string
+          multi_account?: boolean
+          regions?: string[]
+          risk_score?: number | null
           scope?: Json | null
           started_at?: string
           status?: string
@@ -156,15 +282,22 @@ export type Database = {
         Row: {
           access_key_id: string | null
           account_label: string
+          allowed_regions: string[]
           aws_account_id: string | null
+          connection_method: string
           created_at: string
           default_region: string
+          environment: string | null
           external_id: string | null
+          group_id: string | null
           id: string
+          is_org_member: boolean
           last_verified_at: string | null
           require_separate_approver: boolean
           role_arn: string | null
+          role_session_name: string | null
           secret_access_key: string | null
+          tags: Json
           updated_at: string
           user_id: string
           verification_status: string
@@ -172,15 +305,22 @@ export type Database = {
         Insert: {
           access_key_id?: string | null
           account_label: string
+          allowed_regions?: string[]
           aws_account_id?: string | null
+          connection_method?: string
           created_at?: string
           default_region?: string
+          environment?: string | null
           external_id?: string | null
+          group_id?: string | null
           id?: string
+          is_org_member?: boolean
           last_verified_at?: string | null
           require_separate_approver?: boolean
           role_arn?: string | null
+          role_session_name?: string | null
           secret_access_key?: string | null
+          tags?: Json
           updated_at?: string
           user_id: string
           verification_status?: string
@@ -188,76 +328,166 @@ export type Database = {
         Update: {
           access_key_id?: string | null
           account_label?: string
+          allowed_regions?: string[]
           aws_account_id?: string | null
+          connection_method?: string
           created_at?: string
           default_region?: string
+          environment?: string | null
           external_id?: string | null
+          group_id?: string | null
           id?: string
+          is_org_member?: boolean
           last_verified_at?: string | null
           require_separate_approver?: boolean
           role_arn?: string | null
+          role_session_name?: string | null
           secret_access_key?: string | null
+          tags?: Json
           updated_at?: string
           user_id?: string
           verification_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aws_connections_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "account_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      control_mappings: {
+        Row: {
+          check_id: string
+          cis: string[]
+          description: string | null
+          id: string
+          mitre: string[]
+          nist: string[]
+          pci: string[]
+          soc2: string[]
+        }
+        Insert: {
+          check_id: string
+          cis?: string[]
+          description?: string | null
+          id?: string
+          mitre?: string[]
+          nist?: string[]
+          pci?: string[]
+          soc2?: string[]
+        }
+        Update: {
+          check_id?: string
+          cis?: string[]
+          description?: string | null
+          id?: string
+          mitre?: string[]
+          nist?: string[]
+          pci?: string[]
+          soc2?: string[]
         }
         Relationships: []
       }
       findings: {
         Row: {
+          account_id: string | null
           audit_id: string
           check_id: string
           confidence: number
+          controls: Json
           created_at: string
           critic_reasoning: string | null
           critic_verdict: string | null
+          dedup_key: string | null
           description: string | null
           evidence: Json | null
+          finding_score: number
+          first_seen_at: string
           framework_refs: Json | null
           id: string
           region: string | null
+          resolved_at: string | null
           resource_arn: string | null
+          risk_accepted_at: string | null
+          risk_accepted_by: string | null
+          risk_accepted_reason: string | null
           service: string
           severity: string
+          sla_due_at: string | null
           status: string
+          status_lifecycle: string
+          suppressed_by: string | null
+          suppressed_until: string | null
+          suppression_reason: string | null
           title: string
           user_id: string
         }
         Insert: {
+          account_id?: string | null
           audit_id: string
           check_id: string
           confidence?: number
+          controls?: Json
           created_at?: string
           critic_reasoning?: string | null
           critic_verdict?: string | null
+          dedup_key?: string | null
           description?: string | null
           evidence?: Json | null
+          finding_score?: number
+          first_seen_at?: string
           framework_refs?: Json | null
           id?: string
           region?: string | null
+          resolved_at?: string | null
           resource_arn?: string | null
+          risk_accepted_at?: string | null
+          risk_accepted_by?: string | null
+          risk_accepted_reason?: string | null
           service: string
           severity: string
+          sla_due_at?: string | null
           status?: string
+          status_lifecycle?: string
+          suppressed_by?: string | null
+          suppressed_until?: string | null
+          suppression_reason?: string | null
           title: string
           user_id: string
         }
         Update: {
+          account_id?: string | null
           audit_id?: string
           check_id?: string
           confidence?: number
+          controls?: Json
           created_at?: string
           critic_reasoning?: string | null
           critic_verdict?: string | null
+          dedup_key?: string | null
           description?: string | null
           evidence?: Json | null
+          finding_score?: number
+          first_seen_at?: string
           framework_refs?: Json | null
           id?: string
           region?: string | null
+          resolved_at?: string | null
           resource_arn?: string | null
+          risk_accepted_at?: string | null
+          risk_accepted_by?: string | null
+          risk_accepted_reason?: string | null
           service?: string
           severity?: string
+          sla_due_at?: string | null
           status?: string
+          status_lifecycle?: string
+          suppressed_by?: string | null
+          suppressed_until?: string | null
+          suppression_reason?: string | null
           title?: string
           user_id?: string
         }
@@ -478,6 +708,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      scheduled_audits: {
+        Row: {
+          cadence: string
+          connection_id: string
+          created_at: string
+          enabled: boolean
+          id: string
+          last_run_at: string | null
+          name: string
+          next_run_at: string
+          regions: string[]
+          services: string[]
+          user_id: string
+        }
+        Insert: {
+          cadence?: string
+          connection_id: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_run_at?: string | null
+          name: string
+          next_run_at?: string
+          regions?: string[]
+          services?: string[]
+          user_id: string
+        }
+        Update: {
+          cadence?: string
+          connection_id?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_run_at?: string | null
+          name?: string
+          next_run_at?: string
+          regions?: string[]
+          services?: string[]
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {
