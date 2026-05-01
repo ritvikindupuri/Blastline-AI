@@ -110,6 +110,13 @@ export default function Connections() {
     load();
   }
 
+  async function toggleApprover(id: string, value: boolean) {
+    const { error } = await supabase.from("aws_connections").update({ require_separate_approver: value } as any).eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(value ? "Separate approver required" : "Self-approve allowed");
+    load();
+  }
+
   return (
     <AppShell>
       <div className="space-y-6 max-w-5xl">
