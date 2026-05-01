@@ -244,7 +244,7 @@ export default function BlastRadius() {
                 </div>
 
                 <Button onClick={() => setStep(2)} disabled={!resourceArn} className="w-full">
-                  Next: pick change <ChevronArrowRight />
+                  Next: pick change
                 </Button>
               </div>
             )}
