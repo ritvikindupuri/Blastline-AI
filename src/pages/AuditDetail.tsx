@@ -272,6 +272,8 @@ export default function AuditDetail() {
               const isApplied = status === "applied" || r.lifecycle_state === "executed" || r.lifecycle_state === "verified";
               const isFailed = status === "failed";
               const isBusy = busyRemId === r.id;
+              const v = r.verification_result as any;
+              const isVerified = r.lifecycle_state === "verified" && v?.verified;
               return (
                 <div key={r.id} className="rounded-xl border border-border bg-card/60 backdrop-blur p-4 shadow-card">
                   <div className="flex items-start justify-between gap-3">
@@ -280,7 +282,9 @@ export default function AuditDetail() {
                         <Terminal className="h-4 w-4 text-primary" />
                         <span className="text-primary">{r.fix_type}</span>
                         <span className="text-muted-foreground">·</span>
-                        <span className={isApplied ? "text-success" : isFailed ? "text-sev-critical" : "text-muted-foreground"}>{status.replace(/_/g, " ")}</span>
+                        <span className={isVerified ? "text-success" : isApplied ? "text-success" : isFailed ? "text-sev-critical" : "text-muted-foreground"}>
+                          {isVerified ? "proven fixed" : status.replace(/_/g, " ")}
+                        </span>
                       </div>
                       <div className="mt-2 font-medium">{r.title}</div>
                     </div>
@@ -288,12 +292,17 @@ export default function AuditDetail() {
                       {!isApplied && (
                         <Button size="sm" disabled={isBusy} onClick={() => applyRemediation(r)} className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90">
                           {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
-                          {isBusy ? "Applying…" : "Apply via AI agent"}
+                          {isBusy ? "Applying & verifying…" : "Apply via AI agent"}
                         </Button>
                       )}
-                      {isApplied && (
+                      {isApplied && !isVerified && (
                         <span className="flex items-center gap-1.5 rounded-md border border-success/40 bg-success/10 px-2 py-1 text-xs font-mono text-success">
                           <ShieldCheck className="h-3.5 w-3.5" /> Applied
+                        </span>
+                      )}
+                      {isVerified && (
+                        <span className="flex items-center gap-1.5 rounded-md border border-success/60 bg-success/15 px-2 py-1 text-xs font-mono text-success shadow-glow">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Proven fixed
                         </span>
                       )}
                       <Button asChild size="sm" variant="outline" className="gap-2 border-border bg-transparent hover:bg-secondary">
@@ -305,6 +314,24 @@ export default function AuditDetail() {
                   </div>
                   <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.executed_script || r.snippet}</pre>
                   <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed text-muted-foreground">{r.execution_output || "Not executed yet — hit \"Apply via AI agent\" and Blastline will run the AWS API calls for you, then deep-link you to the resource."}</pre>
+                  {v && (
+                    <div className={`mt-2 rounded-md border p-3 text-xs font-mono ${v.verified ? "border-success/40 bg-success/5" : "border-sev-high/40 bg-sev-high/5"}`}>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <CheckCircle2 className={`h-3.5 w-3.5 ${v.verified ? "text-success" : "text-sev-high"}`} />
+                        <span className={`uppercase tracking-wider text-[10px] ${v.verified ? "text-success" : "text-sev-high"}`}>Auto-verification</span>
+                        <span className="text-muted-foreground ml-2">{v.summary}</span>
+                      </div>
+                      <ul className="space-y-0.5 text-[11px]">
+                        {(v.evidence ?? []).map((e: any, i: number) => (
+                          <li key={i} className="flex items-center gap-2">
+                            <span className={e.matched ? "text-success" : "text-sev-critical"}>{e.matched ? "✓" : "✗"}</span>
+                            <span className="text-foreground/90">{e.service}.{e.api}</span>
+                            <span className="text-muted-foreground truncate">— {e.check}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   {remError[r.id] && (
                     <div className="mt-2 flex items-start gap-2 rounded-md border border-sev-critical/40 bg-sev-critical/10 p-2.5 text-xs font-mono text-sev-critical">
                       <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />

@@ -237,7 +237,9 @@ export function RemediationLifecycle({ remediation: r, currentUserId, requireSep
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-1.5 text-success">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              <span className="uppercase tracking-wider text-[10px]">Applied to AWS</span>
+              <span className="uppercase tracking-wider text-[10px]">
+                {r.lifecycle_state === "verified" || lastResult?.verification?.verified ? "Proven fixed in AWS" : "Applied to AWS"}
+              </span>
             </div>
             {(lastResult?.console_url || r.aws_console_url) && (
               <a
@@ -265,6 +267,25 @@ export function RemediationLifecycle({ remediation: r, currentUserId, requireSep
               ))}
             </ul>
           )}
+          {(lastResult?.verification || r.verification_result) && (() => {
+            const v = lastResult?.verification || r.verification_result;
+            return (
+              <div className={`mt-3 rounded border p-2 ${v.verified ? "border-success/40 bg-success/10" : "border-sev-high/40 bg-sev-high/10"}`}>
+                <div className={`flex items-center gap-1.5 text-[10px] uppercase tracking-wider mb-1 ${v.verified ? "text-success" : "text-sev-high"}`}>
+                  <CheckCircle2 className="h-3 w-3" /> Auto-verification — {v.summary}
+                </div>
+                <ul className="space-y-0.5 text-[10px]">
+                  {(v.evidence ?? []).map((e: any, i: number) => (
+                    <li key={i} className="flex items-center gap-2">
+                      <span className={e.matched ? "text-success" : "text-sev-critical"}>{e.matched ? "✓" : "✗"}</span>
+                      <span className="text-foreground/90">{e.service}.{e.api}</span>
+                      <span className="text-muted-foreground truncate">— {e.check}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })()}
         </div>
       )}
 
