@@ -72,27 +72,27 @@ function AttackNode({ data, selected }: NodeProps<GraphNodeData>) {
     : "hsl(var(--muted-foreground))";
   return (
     <div
-      className={`group relative w-[230px] rounded-md border-2 bg-card shadow-card transition-all duration-150 ${
+      className={`group relative w-[220px] rounded-md border bg-card shadow-card transition-all duration-150 ${
         active
           ? "border-primary shadow-glow"
           : data.dimmed
             ? "border-border/30 opacity-30"
             : "border-border hover:border-primary/70"
       }`}
-      style={{ borderLeftColor: sevColor, borderLeftWidth: 4 }}
+      style={{ borderLeftColor: sevColor, borderLeftWidth: 3 }}
     >
       <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-2 !border-border !bg-background" />
       <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-2 !border-primary !bg-primary" />
 
       {/* Header strip */}
-      <div className="flex items-center justify-between border-b border-border/60 bg-background/50 px-2.5 py-1">
-        <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+      <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-background/50 px-2.5 py-1">
+        <div className="flex min-w-0 items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
           <span className="tabular-nums text-foreground/70">#{String((data.index ?? 0) + 1).padStart(2, "0")}</span>
-          <span className="text-border">|</span>
-          <span>{data.kind || "step"}</span>
+          <span className="text-border">·</span>
+          <span className="truncate">{data.kind || "step"}</span>
         </div>
         {data.severity && (
-          <span className="font-mono text-[9px] uppercase tracking-wider" style={{ color: sevColor }}>
+          <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider" style={{ color: sevColor }}>
             {data.severity}
           </span>
         )}
@@ -105,7 +105,7 @@ function AttackNode({ data, selected }: NodeProps<GraphNodeData>) {
         >
           <Icon className="h-3.5 w-3.5" />
         </div>
-        <div className="min-w-0 flex-1 break-words font-mono text-[11px] leading-tight text-foreground">
+        <div className="min-w-0 flex-1 break-words font-mono text-[11px] leading-snug text-foreground line-clamp-3">
           {data.label}
         </div>
       </div>
@@ -190,7 +190,7 @@ export default function AttackPathDetail() {
     const nodes = rawNodes.map((n: any, i: number) => {
       const nodeId = String(n.id ?? i);
       const active = activeNodeIds.has(nodeId);
-      const fallbackPos = { x: i * 320, y: 60 + ((i % 2 === 0 ? 0 : 40)) };
+      const fallbackPos = { x: i * 280, y: 0 };
       return {
         id: nodeId,
         type: "attackNode",
@@ -264,14 +264,14 @@ export default function AttackPathDetail() {
               <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: "hsl(var(--medium))" }} /> medium</span>
             </div>
           </div>
-          <div className="relative grid h-[640px] grid-cols-[1fr_320px]">
+          <div className="relative grid h-[520px] grid-cols-[1fr_320px]">
             <div className="relative">
             <ReactFlow
               nodes={nodes}
               edges={edges}
               nodeTypes={nodeTypes}
               fitView
-              fitViewOptions={{ padding: 0.22, duration: 600 }}
+              fitViewOptions={{ padding: 0.15, duration: 600, maxZoom: 1.1 }}
               minZoom={0.2}
               maxZoom={2}
               panOnScroll
