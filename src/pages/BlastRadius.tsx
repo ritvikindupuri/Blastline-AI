@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, Radar, ShieldAlert, Zap, Check, ExternalLink, Copy, ArrowLeft } from "lucide-react";
+import { AlertTriangle, Radar, ShieldAlert, Zap, Check, ExternalLink, Copy, ArrowLeft, Sparkles, Loader2, Search } from "lucide-react";
 import { InfoTip } from "@/components/InfoTip";
 import { toast } from "sonner";
 
@@ -143,6 +144,12 @@ export default function BlastRadius() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [pickerError, setPickerError] = useState<string | null>(null);
+  const [pickerItems, setPickerItems] = useState<{ arn: string; label: string; hint?: string }[]>([]);
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [pickerRegion, setPickerRegion] = useState<string | null>(null);
 
   const svc = SERVICES.find((s) => s.key === serviceKey)!;
 
@@ -152,6 +159,38 @@ export default function BlastRadius() {
       if (data?.[0]) setConnectionId(data[0].id);
     });
   }, []);
+
+  async function discoverResources() {
+    if (!connectionId) {
+      toast.error("Pick an AWS account first");
+      return;
+    }
+    setPickerOpen(true);
+    setPickerLoading(true);
+    setPickerError(null);
+    setPickerItems([]);
+    setPickerQuery("");
+    try {
+      const { data, error } = await supabase.functions.invoke("list-aws-resources", {
+        body: { connection_id: connectionId, service: serviceKey },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setPickerItems(data?.items ?? []);
+      setPickerRegion(data?.region ?? null);
+      if (!data?.items?.length) setPickerError("No resources of this type found in your account.");
+    } catch (e: any) {
+      setPickerError(e?.message ?? String(e));
+    } finally {
+      setPickerLoading(false);
+    }
+  }
+
+  const filteredItems = pickerItems.filter((it) => {
+    if (!pickerQuery) return true;
+    const q = pickerQuery.toLowerCase();
+    return it.label.toLowerCase().includes(q) || it.arn.toLowerCase().includes(q);
+  });
 
   async function simulate() {
     setLoading(true); setError(null); setResult(null);
