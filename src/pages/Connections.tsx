@@ -286,21 +286,38 @@ aws iam attach-user-policy --user-name trace-auditor \\
           <h3 className="font-display font-semibold text-lg">Connected accounts</h3>
           {conns.length === 0 && <div className="text-sm text-muted-foreground">No connections yet.</div>}
           {conns.map((c) => (
-            <div key={c.id} className="rounded-xl border border-border bg-card/60 backdrop-blur p-4 flex items-center justify-between">
-              <div>
-                <div className="font-medium">{c.account_label} <span className="text-xs text-muted-foreground font-mono ml-2">{c.aws_account_id} · {c.default_region}</span></div>
-                <div className="text-xs font-mono text-muted-foreground truncate max-w-xl">{c.access_key_id ? `${c.access_key_id.slice(0, 8)}••••${c.access_key_id.slice(-4)}` : c.role_arn}</div>
+            <div key={c.id} className="rounded-xl border border-border bg-card/60 backdrop-blur p-4">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="min-w-0">
+                  <div className="font-medium">{c.account_label} <span className="text-xs text-muted-foreground font-mono ml-2">{c.aws_account_id} · {c.default_region}</span></div>
+                  <div className="text-xs font-mono text-muted-foreground truncate max-w-xl">{c.access_key_id ? `${c.access_key_id.slice(0, 8)}••••${c.access_key_id.slice(-4)}` : c.role_arn}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {c.verification_status === "verified" ? (
+                    <span className="flex items-center gap-1 text-xs font-mono text-success"><CheckCircle2 className="h-3.5 w-3.5" /> verified</span>
+                  ) : c.verification_status === "failed" ? (
+                    <span className="flex items-center gap-1 text-xs font-mono text-sev-critical"><XCircle className="h-3.5 w-3.5" /> failed</span>
+                  ) : (
+                    <span className="text-xs font-mono text-muted-foreground">pending</span>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => reverify(c.id)}>Re-verify</Button>
+                  <Button size="sm" variant="ghost" onClick={() => remove(c.id)}><Trash2 className="h-4 w-4" /></Button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                {c.verification_status === "verified" ? (
-                  <span className="flex items-center gap-1 text-xs font-mono text-success"><CheckCircle2 className="h-3.5 w-3.5" /> verified</span>
-                ) : c.verification_status === "failed" ? (
-                  <span className="flex items-center gap-1 text-xs font-mono text-sev-critical"><XCircle className="h-3.5 w-3.5" /> failed</span>
-                ) : (
-                  <span className="text-xs font-mono text-muted-foreground">pending</span>
-                )}
-                <Button size="sm" variant="outline" onClick={() => reverify(c.id)}>Re-verify</Button>
-                <Button size="sm" variant="ghost" onClick={() => remove(c.id)}><Trash2 className="h-4 w-4" /></Button>
+              <div className="mt-3 flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2">
+                <div>
+                  <div className="text-xs font-medium">Require separate approver for remediations</div>
+                  <div className="text-[11px] text-muted-foreground">When on, the user who proposes a fix can&apos;t also approve it. Recommended for production.</div>
+                </div>
+                <label className="inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={Boolean(c.require_separate_approver)}
+                    onChange={(e) => toggleApprover(c.id, e.target.checked)}
+                  />
+                  <div className="relative w-10 h-5 bg-secondary rounded-full peer-checked:bg-primary transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-background after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-5"></div>
+                </label>
               </div>
             </div>
           ))}
