@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, Radar, ShieldAlert, Zap, Check, ExternalLink, Copy, ArrowLeft } from "lucide-react";
+import { AlertTriangle, Radar, ShieldAlert, Zap, Check, ExternalLink, Copy, ArrowLeft, Sparkles, Loader2, Search } from "lucide-react";
 import { InfoTip } from "@/components/InfoTip";
 import { toast } from "sonner";
 
@@ -143,6 +144,12 @@ export default function BlastRadius() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [pickerError, setPickerError] = useState<string | null>(null);
+  const [pickerItems, setPickerItems] = useState<{ arn: string; label: string; hint?: string }[]>([]);
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [pickerRegion, setPickerRegion] = useState<string | null>(null);
 
   const svc = SERVICES.find((s) => s.key === serviceKey)!;
 
@@ -152,6 +159,38 @@ export default function BlastRadius() {
       if (data?.[0]) setConnectionId(data[0].id);
     });
   }, []);
+
+  async function discoverResources() {
+    if (!connectionId) {
+      toast.error("Pick an AWS account first");
+      return;
+    }
+    setPickerOpen(true);
+    setPickerLoading(true);
+    setPickerError(null);
+    setPickerItems([]);
+    setPickerQuery("");
+    try {
+      const { data, error } = await supabase.functions.invoke("list-aws-resources", {
+        body: { connection_id: connectionId, service: serviceKey },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setPickerItems(data?.items ?? []);
+      setPickerRegion(data?.region ?? null);
+      if (!data?.items?.length) setPickerError("No resources of this type found in your account.");
+    } catch (e: any) {
+      setPickerError(e?.message ?? String(e));
+    } finally {
+      setPickerLoading(false);
+    }
+  }
+
+  const filteredItems = pickerItems.filter((it) => {
+    if (!pickerQuery) return true;
+    const q = pickerQuery.toLowerCase();
+    return it.label.toLowerCase().includes(q) || it.arn.toLowerCase().includes(q);
+  });
 
   async function simulate() {
     setLoading(true); setError(null); setResult(null);
@@ -220,7 +259,7 @@ export default function BlastRadius() {
                   <Label className="text-xs flex items-center gap-1.5">Resource type <InfoTip>What kind of AWS resource you're about to change. We'll show you exactly where to find its ARN.</InfoTip></Label>
                   <div className="mt-1 grid grid-cols-2 gap-1.5">
                     {SERVICES.map((s) => (
-                      <button key={s.key} type="button" onClick={() => { setServiceKey(s.key); setChangeId(""); setChange(""); }} className={`text-left rounded-md border px-2.5 py-2 text-xs transition-colors ${serviceKey === s.key ? "border-primary/60 bg-primary/5 text-foreground" : "border-border bg-background/40 hover:bg-background/60 text-muted-foreground"}`}>
+                      <button key={s.key} type="button" onClick={() => { setServiceKey(s.key); setChangeId(""); setChange(""); setPickerItems([]); setPickerError(null); setPickerRegion(null); }} className={`text-left rounded-md border px-2.5 py-2 text-xs transition-colors ${serviceKey === s.key ? "border-primary/60 bg-primary/5 text-foreground" : "border-border bg-background/40 hover:bg-background/60 text-muted-foreground"}`}>
                         {s.label}
                       </button>
                     ))}
@@ -233,13 +272,80 @@ export default function BlastRadius() {
                     <InfoTip>{svc.arnHint}</InfoTip>
                   </Label>
                   <Input className="mt-1 font-mono text-xs" placeholder={svc.arnExample} value={resourceArn} onChange={(e) => setResourceArn(e.target.value)} />
-                  <div className="mt-1.5 flex items-center justify-between text-[11px]">
-                    <button type="button" onClick={() => { setResourceArn(svc.arnExample); toast.success("Example ARN inserted — replace with yours"); }} className="text-muted-foreground hover:text-primary inline-flex items-center gap-1">
-                      <Copy className="h-3 w-3" /> Use example
-                    </button>
-                    <a href={svc.consoleUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
-                      {svc.consoleLabel} <ExternalLink className="h-3 w-3" />
-                    </a>
+                  <div className="mt-2 space-y-1.5">
+                    <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={discoverResources}
+                          disabled={!connectionId || pickerLoading}
+                          className="w-full justify-start gap-2 border-primary/40 text-primary hover:bg-primary/5 hover:text-primary"
+                        >
+                          {pickerLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                          Pick from your account
+                          <span className="ml-auto text-[10px] font-mono uppercase tracking-wider text-muted-foreground">read-only</span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[420px] p-0" align="start">
+                        <div className="border-b border-border px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                              {svc.label}{pickerRegion ? ` · ${pickerRegion}` : ""}
+                            </div>
+                            <button onClick={discoverResources} className="text-[10px] font-mono uppercase text-primary hover:underline" disabled={pickerLoading}>
+                              {pickerLoading ? "loading…" : "refresh"}
+                            </button>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2 rounded-md border border-border bg-background px-2">
+                            <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                            <input
+                              autoFocus
+                              value={pickerQuery}
+                              onChange={(e) => setPickerQuery(e.target.value)}
+                              placeholder="Filter by name or ARN…"
+                              className="flex-1 bg-transparent py-1.5 text-xs font-mono outline-none placeholder:text-muted-foreground/60"
+                            />
+                          </div>
+                        </div>
+                        <div className="max-h-72 overflow-y-auto">
+                          {pickerLoading && (
+                            <div className="flex items-center gap-2 p-4 text-xs text-muted-foreground">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Listing {svc.label.toLowerCase()}s in your account…
+                            </div>
+                          )}
+                          {!pickerLoading && pickerError && (
+                            <div className="p-3 text-xs text-destructive flex items-start gap-2">
+                              <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                              <span>{pickerError}</span>
+                            </div>
+                          )}
+                          {!pickerLoading && !pickerError && filteredItems.length === 0 && (
+                            <div className="p-4 text-xs text-muted-foreground">No matches.</div>
+                          )}
+                          {!pickerLoading && filteredItems.map((it) => (
+                            <button
+                              key={it.arn}
+                              type="button"
+                              onClick={() => { setResourceArn(it.arn); setPickerOpen(false); toast.success(`Selected ${it.label}`); }}
+                              className="w-full text-left border-b border-border/50 px-3 py-2 hover:bg-primary/5 transition-colors"
+                            >
+                              <div className="text-xs font-medium truncate">{it.label}</div>
+                              <div className="font-mono text-[10px] text-muted-foreground truncate">{it.arn}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <button type="button" onClick={() => { setResourceArn(svc.arnExample); toast.success("Example ARN inserted — replace with yours"); }} className="text-muted-foreground hover:text-primary inline-flex items-center gap-1">
+                        <Copy className="h-3 w-3" /> Use example
+                      </button>
+                      <a href={svc.consoleUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                        {svc.consoleLabel} <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
                   </div>
                 </div>
 
