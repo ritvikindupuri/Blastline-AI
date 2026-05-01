@@ -267,21 +267,50 @@ export default function AuditDetail() {
             {remediations.length === 0 && <div className="text-sm text-muted-foreground">No remediation scripts generated yet.</div>}
             {remediations.map((r) => {
               const finding = findings.find((f) => f.id === r.finding_id);
-              const region = finding?.region || "us-east-1";
-              const awsUrl = r.aws_console_url || (finding?.service === "iam" ? "https://console.aws.amazon.com/iam/home" : `https://${region}.console.aws.amazon.com/console/home?region=${region}`);
+              const awsUrl = awsConsoleFor(finding, r);
+              const status = r.execution_status ?? "not_applied";
+              const isApplied = status === "applied" || r.lifecycle_state === "executed" || r.lifecycle_state === "verified";
+              const isFailed = status === "failed";
+              const isBusy = busyRemId === r.id;
               return (
                 <div key={r.id} className="rounded-xl border border-border bg-card/60 backdrop-blur p-4 shadow-card">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-primary"><Terminal className="h-4 w-4" /> {r.fix_type} · {r.execution_status ?? "not_applied"}</div>
+                      <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider">
+                        <Terminal className="h-4 w-4 text-primary" />
+                        <span className="text-primary">{r.fix_type}</span>
+                        <span className="text-muted-foreground">·</span>
+                        <span className={isApplied ? "text-success" : isFailed ? "text-sev-critical" : "text-muted-foreground"}>{status.replace(/_/g, " ")}</span>
+                      </div>
                       <div className="mt-2 font-medium">{r.title}</div>
                     </div>
-                    <Button asChild size="sm" variant="outline" className="gap-2 border-border bg-transparent hover:bg-secondary">
-                      <a href={awsUrl} target="_blank" rel="noreferrer">Review in AWS <ExternalLink className="h-3.5 w-3.5" /></a>
-                    </Button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {!isApplied && (
+                        <Button size="sm" disabled={isBusy} onClick={() => applyRemediation(r)} className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90">
+                          {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
+                          {isBusy ? "Applying…" : "Apply via AI agent"}
+                        </Button>
+                      )}
+                      {isApplied && (
+                        <span className="flex items-center gap-1.5 rounded-md border border-success/40 bg-success/10 px-2 py-1 text-xs font-mono text-success">
+                          <ShieldCheck className="h-3.5 w-3.5" /> Applied
+                        </span>
+                      )}
+                      <Button asChild size="sm" variant="outline" className="gap-2 border-border bg-transparent hover:bg-secondary">
+                        <a href={awsUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                          {isApplied ? "View result in AWS" : "Review in AWS"} <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      </Button>
+                    </div>
                   </div>
                   <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.executed_script || r.snippet}</pre>
-                  <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.execution_output || "Not executed from Blastline yet."}</pre>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed text-muted-foreground">{r.execution_output || "Not executed yet — hit \"Apply via AI agent\" and Blastline will run the AWS API calls for you, then deep-link you to the resource."}</pre>
+                  {remError[r.id] && (
+                    <div className="mt-2 flex items-start gap-2 rounded-md border border-sev-critical/40 bg-sev-critical/10 p-2.5 text-xs font-mono text-sev-critical">
+                      <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                      <div className="flex-1 break-words">{remError[r.id]}</div>
+                    </div>
+                  )}
                 </div>
               );
             })}
