@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Plug, CheckCircle2, XCircle, Loader2, Trash2, ShieldCheck, ExternalLink, Eye, EyeOff, Copy, Info, Filter } from "lucide-react";
+import { Plug, CheckCircle2, XCircle, Loader2, Trash2, ShieldCheck, ExternalLink, Eye, EyeOff, Copy, Info, Filter, ChevronRight } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { InfoTip } from "@/components/InfoTip";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 const MIN_PRIVILEGE_POLICY = `{
   "Version": "2012-10-17",
@@ -69,6 +70,7 @@ export default function Connections() {
   const [enabledServices, setEnabledServices] = useState<Set<ServiceKey>>(
     new Set<ServiceKey>(["iam", "cloudtrail_guardduty", "s3"]),
   );
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const recommended = (() => {
     const set = new Set<"SecurityAudit" | "ReadOnlyAccess">();
@@ -152,177 +154,137 @@ export default function Connections() {
             <InfoTip>Blastline runs <span className="font-mono">read-only</span> against your AWS account. Connect each account with its own IAM user + access key, scoped to the policies below.</InfoTip>
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Three steps: create an IAM user → attach permissions → paste the access key here. Takes about 2 minutes.
+            ~2 minutes. Pick services → attach 2 AWS policies → paste your access key.
           </p>
         </div>
 
-        {/* Stepper */}
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { n: 1, t: "Create IAM user", s: "in AWS console" },
-            { n: 2, t: "Attach permissions", s: "managed policy or JSON" },
-            { n: 3, t: "Paste access key", s: "Blastline verifies it" },
-          ].map((s) => (
-            <div key={s.n} className="rounded-md border border-border bg-card/40 px-3 py-2.5 flex items-center gap-3">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/10 font-mono text-xs text-primary">{s.n}</div>
-              <div className="min-w-0">
-                <div className="text-sm font-medium leading-tight">{s.t}</div>
-                <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{s.s}</div>
+        {/* Compact accordion setup */}
+        <Accordion type="single" collapsible defaultValue="step-1" className="space-y-2">
+          {/* Step 1 — pick services */}
+          <AccordionItem value="step-1" className="rounded-xl border border-border bg-card/60 backdrop-blur px-5 shadow-card">
+            <AccordionTrigger className="hover:no-underline py-4">
+              <div className="flex items-center gap-3 text-left">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/10 font-mono text-xs text-primary">1</div>
+                <div>
+                  <div className="text-sm font-semibold flex items-center gap-2">Pick what to audit <InfoTip>Drives which AWS-managed policies we recommend in the next step.</InfoTip></div>
+                  <div className="text-xs text-muted-foreground">{enabledServices.size} service group{enabledServices.size === 1 ? "" : "s"} selected · needs <span className="font-mono text-primary">{Array.from(recommended).join(" + ") || "—"}</span></div>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            </AccordionTrigger>
+            <AccordionContent className="pb-5">
+              <div className="grid sm:grid-cols-2 gap-2">
+                {AUDIT_SERVICES.map((s) => {
+                  const checked = enabledServices.has(s.key);
+                  return (
+                    <label key={s.key} className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${checked ? "border-primary/60 bg-primary/5" : "border-border bg-background/40 hover:bg-background/60"}`}>
+                      <Checkbox checked={checked} onCheckedChange={(v) => {
+                        setEnabledServices((prev) => { const next = new Set(prev); if (v) next.add(s.key); else next.delete(s.key); return next; });
+                      }} />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium">{s.label}</div>
+                        <div className="text-xs text-muted-foreground font-mono mt-0.5">{s.needs.join(" + ")}</div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
 
-        {/* Audit preset */}
-        <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-6 space-y-4 shadow-card">
-          <div className="flex items-center gap-2 text-primary">
-            <Filter className="h-5 w-5" />
-            <h3 className="font-display font-semibold flex items-center gap-2">
-              Audit preset
-              <InfoTip>Pick which AWS service families Blastline should scan. We only recommend the AWS-managed policies you actually need based on your selection — minimum privilege.</InfoTip>
-            </h3>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Pick the services Blastline should audit. We'll recommend the minimal set of AWS-managed policies to attach.
-          </p>
-          <div className="grid sm:grid-cols-2 gap-2">
-            {AUDIT_SERVICES.map((s) => {
-              const checked = enabledServices.has(s.key);
-              return (
-                <label
-                  key={s.key}
-                  className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${
-                    checked ? "border-primary/60 bg-primary/5" : "border-border bg-background/40 hover:bg-background/60"
-                  }`}
-                >
-                  <Checkbox
-                    checked={checked}
-                    onCheckedChange={(v) => {
-                      setEnabledServices((prev) => {
-                        const next = new Set(prev);
-                        if (v) next.add(s.key); else next.delete(s.key);
-                        return next;
-                      });
-                    }}
-                  />
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium">{s.label}</div>
-                    <div className="text-xs text-muted-foreground font-mono mt-0.5">{s.needs.join(" + ")}</div>
+          {/* Step 2 — create user + attach policies */}
+          <AccordionItem value="step-2" className="rounded-xl border border-border bg-card/60 backdrop-blur px-5 shadow-card">
+            <AccordionTrigger className="hover:no-underline py-4">
+              <div className="flex items-center gap-3 text-left">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/10 font-mono text-xs text-primary">2</div>
+                <div>
+                  <div className="text-sm font-semibold flex items-center gap-2">Create IAM user & attach policies <InfoTip>One dedicated read-only IAM user per AWS account. Don't reuse an existing power-user.</InfoTip></div>
+                  <div className="text-xs text-muted-foreground">Console clicks or one-line CLI — your choice.</div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pb-5 space-y-4">
+              {/* Quick CLI path — fastest */}
+              <div className="rounded-md border border-primary/40 bg-primary/5 p-3">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="text-xs font-mono uppercase tracking-wider text-primary flex items-center gap-1.5">⚡ Fastest · AWS CLI <InfoTip>Run from any shell with AWS CLI configured against the target account.</InfoTip></div>
+                  <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => copy(`aws iam create-user --user-name blastline-auditor\naws iam attach-user-policy --user-name blastline-auditor --policy-arn arn:aws:iam::aws:policy/SecurityAudit\naws iam attach-user-policy --user-name blastline-auditor --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess\naws iam create-access-key --user-name blastline-auditor`, "CLI commands")}>
+                    <Copy className="h-3 w-3" /> Copy
+                  </Button>
+                </div>
+                <pre className="font-mono text-[11px] leading-relaxed overflow-x-auto whitespace-pre text-foreground">{`aws iam create-user --user-name blastline-auditor
+aws iam attach-user-policy --user-name blastline-auditor --policy-arn arn:aws:iam::aws:policy/SecurityAudit
+aws iam attach-user-policy --user-name blastline-auditor --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess
+aws iam create-access-key --user-name blastline-auditor`}</pre>
+                <div className="text-[11px] text-muted-foreground mt-2">Copy the <span className="font-mono">AccessKeyId</span> + <span className="font-mono">SecretAccessKey</span> from the last command's output and paste in step 3.</div>
+              </div>
+
+              {/* Console path — collapsed under disclosure */}
+              <details className="group rounded-md border border-border bg-background/40">
+                <summary className="cursor-pointer list-none p-3 flex items-center gap-2 text-sm">
+                  <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-90" />
+                  <span>Prefer clicking through the AWS console? <span className="text-muted-foreground">(3 clicks)</span></span>
+                </summary>
+                <div className="px-4 pb-4 pt-1 text-sm space-y-2.5 text-muted-foreground">
+                  <div><span className="font-mono text-primary mr-1">1.</span> <a className="text-primary inline-flex items-center gap-1 hover:underline" href="https://console.aws.amazon.com/iam/home#/users" target="_blank" rel="noreferrer">Open IAM Users <ExternalLink className="h-3 w-3" /></a> → <span className="font-mono text-foreground">Create user</span>. Name it <span className="font-mono text-foreground inline-flex items-center gap-1">blastline-auditor<button type="button" onClick={() => copy("blastline-auditor", "Username")} className="hover:text-primary"><Copy className="h-3 w-3" /></button></span>. Leave console access <span className="font-mono">unchecked</span>.</div>
+                  <div><span className="font-mono text-primary mr-1">2.</span> Permissions → <span className="font-mono text-foreground">Attach policies directly</span> → search for the policies below and check both.</div>
+                  <div><span className="font-mono text-primary mr-1">3.</span> Open the user → <span className="font-mono text-foreground">Security credentials → Create access key → Third-party service</span>.</div>
+                  <div className="rounded border border-border bg-background/60 p-2.5 flex gap-2 text-xs">
+                    <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                    <div>Can't find the policies in the picker? Switch <span className="font-mono text-foreground">Filter by Type</span> from <span className="font-mono">AWS managed</span> to <span className="font-mono">All types</span>.</div>
                   </div>
-                </label>
-              );
-            })}
-          </div>
-          <div className="rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">
-            <span className="text-muted-foreground">Recommended policies for your selection: </span>
-            {recommended.size === 0 ? (
-              <span className="text-muted-foreground">none — pick at least one service.</span>
-            ) : (
-              <span className="font-mono text-primary">{Array.from(recommended).join(" + ")}</span>
-            )}
-          </div>
-        </div>
+                </div>
+              </details>
 
-        <div className="rounded-xl border border-border bg-card/60 backdrop-blur p-6 space-y-5 shadow-card">
-          <div className="flex items-center gap-2 text-primary">
-            <ShieldCheck className="h-5 w-5" />
-            <h3 className="font-display font-semibold flex items-center gap-2">
-              Create a Blastline IAM user in AWS
-              <InfoTip>Each AWS account you connect needs its own dedicated IAM user with only the read permissions Blastline requires. Don't reuse an existing power-user.</InfoTip>
-            </h3>
-          </div>
-
-          <ol className="space-y-4 text-sm leading-relaxed">
-            <li>
-              <span className="font-mono text-primary">[1]</span> Open the{" "}
-              <a className="text-primary inline-flex items-center gap-1 hover:underline" href="https://console.aws.amazon.com/iam/home#/users" target="_blank" rel="noreferrer">
-                IAM Users console <ExternalLink className="h-3 w-3" />
-              </a>{" "}
-              and click <span className="font-mono text-foreground">Create user</span>.
-            </li>
-            <li>
-              <span className="font-mono text-primary">[2]</span> Name the user{" "}
-              <span className="font-mono text-foreground inline-flex items-center gap-1">blastline-auditor
-                <button type="button" onClick={() => copy("blastline-auditor", "Username")} className="text-muted-foreground hover:text-primary"><Copy className="h-3 w-3" /></button>
-              </span>. Leave “Provide user access to the AWS Management Console” <span className="font-mono text-foreground">unchecked</span>. Click <span className="font-mono text-foreground">Next</span>, then <span className="font-mono text-foreground">Next</span> again on the permissions screen (we'll attach permissions on the next step). Click <span className="font-mono text-foreground">Create user</span>.
-            </li>
-            <li>
-              <span className="font-mono text-primary">[3]</span> Open the new <span className="font-mono text-foreground">blastline-auditor</span> user, go to the <span className="font-mono text-foreground">Permissions</span> tab and choose <span className="font-mono text-foreground">Add permissions → Attach policies directly</span>. Attach the AWS-managed policies below
-              <InfoTip>You can also paste the minimum-privilege custom policy further down — that's the most-secure option.</InfoTip>.
-              <div className="mt-3 space-y-2">
+              {/* Policies — compact one-line cards */}
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Policies to attach</div>
                 {(Object.values(AWS_POLICIES)).map((p) => {
                   const isRecommended = recommended.has(p.name as "SecurityAudit" | "ReadOnlyAccess");
                   return (
-                    <div
-                      key={p.arn}
-                      className={`rounded-md border ${isRecommended ? "border-primary/60 bg-primary/5" : "border-border bg-background/60"} p-3`}
-                    >
-                      <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="font-display font-semibold text-sm">{p.name}</span>
-                          {isRecommended && (
-                            <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary text-primary-foreground">
-                              Recommended
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => copy(p.name, p.name)}>
-                            <Copy className="h-3 w-3" /> Name
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => copy(p.arn, "ARN")}>
-                            <Copy className="h-3 w-3" /> ARN
-                          </Button>
-                        </div>
+                    <div key={p.arn} className={`rounded-md border ${isRecommended ? "border-primary/60 bg-primary/5" : "border-border bg-background/40"} px-3 py-2 flex items-center gap-3 flex-wrap`}>
+                      <span className="font-display font-semibold text-sm">{p.name}</span>
+                      {isRecommended && <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary text-primary-foreground">Recommended</span>}
+                      <span className="font-mono text-[11px] text-muted-foreground truncate flex-1 min-w-0">{p.arn}</span>
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => copy(p.name, p.name)}><Copy className="h-3 w-3" /> Name</Button>
+                        <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => copy(p.arn, "ARN")}><Copy className="h-3 w-3" /> ARN</Button>
                       </div>
-                      <div className="mt-1.5 font-mono text-xs text-muted-foreground break-all">{p.arn}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">{p.blurb}</div>
                     </div>
                   );
                 })}
               </div>
 
-              <div className="mt-3 rounded-md border border-border bg-background/40 p-3 flex gap-2 text-xs text-muted-foreground">
-                <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                <div>
-                  Can't find <span className="font-mono text-foreground">ReadOnlyAccess</span> or <span className="font-mono text-foreground">SecurityAudit</span> in the picker?
-                  Click <span className="font-mono text-foreground">Filter by Type</span> at the top of the policy list and switch it from
-                  <span className="font-mono text-foreground"> AWS managed</span> to <span className="font-mono text-foreground">All types</span>.
-                  Both policies live under the <span className="font-mono text-foreground">Job function</span> category and are hidden by the default filter.
+              {/* Advanced — minimum-privilege JSON */}
+              <button type="button" onClick={() => setShowAdvanced((s) => !s)} className="text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-primary inline-flex items-center gap-1.5">
+                <ChevronRight className={`h-3 w-3 transition-transform ${showAdvanced ? "rotate-90" : ""}`} />
+                Advanced · minimum-privilege custom policy
+              </button>
+              {showAdvanced && (
+                <div className="rounded-md border border-border bg-background/60 overflow-hidden">
+                  <div className="flex items-center justify-between border-b border-border bg-background/80 px-3 py-1.5">
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">BlastlineReadOnly · IAM policy JSON</span>
+                    <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => copy(MIN_PRIVILEGE_POLICY, "Policy JSON")}><Copy className="h-3 w-3" /> Copy JSON</Button>
+                  </div>
+                  <pre className="p-3 font-mono text-[11px] leading-relaxed overflow-x-auto whitespace-pre max-h-64">{MIN_PRIVILEGE_POLICY}</pre>
+                  <div className="px-3 py-2 text-[11px] text-muted-foreground border-t border-border">In AWS: <span className="font-mono text-foreground">IAM → Policies → Create policy → JSON</span> → paste → name it <span className="font-mono text-foreground">BlastlineReadOnly</span>.</div>
                 </div>
-              </div>
-            </li>
-            <li>
-              <span className="font-mono text-primary">[3b]</span> <span className="text-muted-foreground">(Most secure, optional)</span> Instead of the managed policies above, attach this minimum-privilege custom policy
-              <InfoTip>Same coverage as SecurityAudit + ReadOnlyAccess but scoped to only the API actions Blastline calls. Recommended for production.</InfoTip>:
-              <div className="mt-2 rounded-md border border-border bg-background/60 overflow-hidden">
-                <div className="flex items-center justify-between border-b border-border bg-background/80 px-3 py-1.5">
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">BlastlineReadOnly · IAM policy JSON</span>
-                  <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => copy(MIN_PRIVILEGE_POLICY, "Policy JSON")}>
-                    <Copy className="h-3 w-3" /> Copy JSON
-                  </Button>
-                </div>
-                <pre className="p-3 font-mono text-[11px] leading-relaxed overflow-x-auto whitespace-pre max-h-64">{MIN_PRIVILEGE_POLICY}</pre>
-              </div>
-              <div className="mt-2 text-xs text-muted-foreground">In AWS: <span className="font-mono text-foreground">IAM → Policies → Create policy → JSON</span> → paste → name it <span className="font-mono text-foreground">BlastlineReadOnly</span> → attach to <span className="font-mono text-foreground">blastline-auditor</span>.</div>
-            </li>
-            <li>
-              <span className="font-mono text-primary">[4]</span> <span className="text-muted-foreground">(Faster, optional)</span> Or attach both ARNs from the AWS CLI:
-              <pre className="mt-2 rounded-md border border-border bg-background/60 p-3 font-mono text-xs overflow-x-auto whitespace-pre">{`aws iam attach-user-policy --user-name blastline-auditor \\
-  --policy-arn arn:aws:iam::aws:policy/SecurityAudit
-aws iam attach-user-policy --user-name blastline-auditor \\
-  --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess`}</pre>
-            </li>
-            <li>
-              <span className="font-mono text-primary">[5]</span> On the user, go to <span className="font-mono text-foreground">Security credentials → Access keys → Create access key</span>. Choose <span className="font-mono text-foreground">Third-party service</span>, then <span className="font-mono text-foreground">Create</span>.
-            </li>
-            <li>
-              <span className="font-mono text-primary">[6]</span> Copy the <span className="font-mono text-foreground">Access key ID</span> and <span className="font-mono text-foreground">Secret access key</span> and paste them below.
-              <InfoTip>The secret is shown only once in AWS. If you lose it, deactivate the key and create a new one — never email or share the secret.</InfoTip>
-            </li>
-          </ol>
+              )}
+            </AccordionContent>
+          </AccordionItem>
 
-          <div className="grid md:grid-cols-2 gap-3 pt-2 border-t border-border">
+          {/* Step 3 — paste keys */}
+          <AccordionItem value="step-3" className="rounded-xl border border-border bg-card/60 backdrop-blur px-5 shadow-card">
+            <AccordionTrigger className="hover:no-underline py-4">
+              <div className="flex items-center gap-3 text-left">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/10 font-mono text-xs text-primary">3</div>
+                <div>
+                  <div className="text-sm font-semibold flex items-center gap-2">Paste access key <InfoTip>Stored encrypted at rest. Never displayed in logs or shared with model providers.</InfoTip></div>
+                  <div className="text-xs text-muted-foreground">Blastline runs <span className="font-mono text-primary">sts:GetCallerIdentity</span> to verify.</div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pb-5 space-y-4">
+              <div className="grid md:grid-cols-2 gap-3">
             <div>
               <Label htmlFor="lbl" className="flex items-center gap-1.5">Account label <InfoTip>Friendly name shown across Blastline (e.g. "Production", "EU staging").</InfoTip></Label>
               <Input id="lbl" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Production" />
@@ -344,13 +306,14 @@ aws iam attach-user-policy --user-name blastline-auditor \\
                 </button>
               </div>
             </div>
-          </div>
-
-          <Button onClick={add} disabled={!accessKeyId || !secretAccessKey || verifying} className="gap-2 shadow-glow">
-            {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />}
-            Save & verify connection
-          </Button>
-        </div>
+              </div>
+              <Button onClick={add} disabled={!accessKeyId || !secretAccessKey || verifying} className="gap-2 shadow-glow">
+                {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />}
+                Save & verify connection
+              </Button>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
 
         <div className="space-y-3">
           <h3 className="font-display font-semibold text-lg flex items-center gap-2">Connected accounts <InfoTip>Each row is one AWS account. Re-verify periodically to confirm credentials still work.</InfoTip></h3>
