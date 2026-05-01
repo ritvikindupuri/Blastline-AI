@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
-import { LayoutDashboard, Plug, Activity, FileSearch, LogOut, Network, Radar, KeyRound } from "lucide-react";
+import { LayoutDashboard, Plug, Activity, FileSearch, LogOut, Network, Radar, KeyRound, GitPullRequest } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/blastline-logo.png";
 
@@ -18,6 +18,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const items = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/audits", label: "Audits", icon: Activity },
+    { to: "/plan-review", label: "Plan Review", icon: GitPullRequest },
     { to: "/findings", label: "Findings", icon: FileSearch },
     { to: "/attack-paths", label: "Attack Paths", icon: Network },
     { to: "/blast-radius", label: "Blast-Radius Sim", icon: Radar },

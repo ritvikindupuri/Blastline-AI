@@ -1,14 +1,14 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, CheckCircle2, Radar, KeyRound, GitBranch, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Radar, KeyRound, GitBranch, ShieldCheck, GitPullRequest } from "lucide-react";
 import { motion } from "framer-motion";
 import logo from "@/assets/blastline-logo.png";
 
 const pillars = [
-  { num: "01", icon: Radar,       name: "Blast-Radius Simulator",     role: "Pre-execution",   desc: "See what breaks before you change a resource." },
-  { num: "02", icon: KeyRound,    name: "Effective Permissions",      role: "IAM reachability", desc: "Walk role chains, SCPs and boundaries end-to-end." },
-  { num: "03", icon: GitBranch,   name: "Attack Graph",                role: "Chained risk",     desc: "Misconfigs linked into real escalation paths." },
-  { num: "04", icon: ShieldCheck, name: "Multi-Account Audits",       role: "Org-aware",        desc: "CIS · NIST · SOC2 · PCI · MITRE, in one pane." },
+  { num: "01", icon: GitPullRequest, name: "Plan Review",                role: "Pre-merge",        desc: "Paste a terraform plan. Get ship/warn/block per change." },
+  { num: "02", icon: Radar,          name: "Blast-Radius Simulator",     role: "Pre-execution",    desc: "See what breaks before you change a resource." },
+  { num: "03", icon: KeyRound,       name: "Effective Permissions",      role: "IAM reachability", desc: "Walk role chains, SCPs and boundaries end-to-end." },
+  { num: "04", icon: GitBranch,      name: "Attack Graph",               role: "Chained risk",     desc: "Misconfigs linked into real escalation paths." },
 ];
 
 export default function Landing() {
