@@ -320,6 +320,7 @@ async function runPipeline(audit_id: string, user_id: string) {
   const creds: Creds = { ak: conn.access_key_id, sk: conn.secret_access_key };
   const ident = await getCallerIdentity(creds, region);
   const accountId = ident.account ?? conn.aws_account_id ?? null;
+  _currentAccountId = accountId;
   await logExec(audit_id, user_id, "recon", "auth",
     `Authenticated as ${ident.arn ?? "unknown"} · account ${ident.account ?? "?"}`,
     `aws sts get-caller-identity --region ${region}`,
