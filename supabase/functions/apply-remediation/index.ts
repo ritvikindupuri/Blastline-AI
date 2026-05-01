@@ -315,6 +315,97 @@ ${snippet.slice(0, 8000)}
 }
 
 // ============================================================
+// AI verifier — produces a READ-ONLY check that proves the fix landed
+// ============================================================
+type Verification = {
+  verified: boolean;
+  summary: string;
+  evidence: Array<{ check: string; service: string; api: string; ok: boolean; status?: number; matched?: boolean; expected?: string; actual_preview?: string; error?: string }>;
+};
+
+type CheckPlan = {
+  checks: Array<{
+    id: string;
+    description: string;
+    service: Action["service"];
+    api: string; // must be a READ-ONLY API (Get*, Describe*, List*)
+    region?: string;
+    params: Record<string, any>;
+    expect: { contains?: string; not_contains?: string; status_ok?: boolean };
+  }>;
+};
+
+async function planVerification(actions: Action[], finding: any): Promise<CheckPlan> {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
+
+  const system = `You are an AWS post-remediation verifier. Given a list of WRITE actions just executed, produce a list of READ-ONLY AWS API calls that prove the change landed.
+
+Return STRICT JSON: {"checks":[{"id":"v1","description":"...","service":"iam|s3|ec2|rds|kms|logs|cloudtrail|lambda|secretsmanager","api":"<Read API>","region":"...","params":{...},"expect":{"contains":"<substring that must appear in response>","not_contains":"<substring that must NOT appear>","status_ok":true}}]}
+
+Rules:
+- Use ONLY read APIs: GetAccountPasswordPolicy, GetBucketPublicAccessBlock, GetBucketEncryption, GetBucketVersioning, DescribeSecurityGroups, DescribeDBInstances, GetKeyRotationStatus, DescribeLogGroups, GetTrailStatus, GetTrail, GetFunctionConfiguration, etc.
+- Match each WRITE action with a verifying READ. 1 check per write action.
+- "contains" should be a string from the AWS response that PROVES the fix (e.g. "BlockPublicAcls>true", "MinimumPasswordLength>14", "<KeyRotationEnabled>true").
+- Keep checks small (1-4 total).`;
+
+  const user = `Finding being fixed: ${finding?.title} (${finding?.check_id})
+Resource: ${finding?.resource_arn || "(none)"} | Region: ${finding?.region || "us-east-1"}
+
+Write actions just executed:
+${JSON.stringify(actions.map((a) => ({ service: a.service, api: a.api, params: a.params })), null, 2)}`;
+
+  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [{ role: "system", content: system }, { role: "user", content: user }],
+      response_format: { type: "json_object" },
+    }),
+  });
+  if (!r.ok) throw new Error(`Verifier planner failed: ${r.status}`);
+  const j = await r.json();
+  const content = j?.choices?.[0]?.message?.content || "{}";
+  const parsed = JSON.parse(content);
+  return { checks: Array.isArray(parsed?.checks) ? parsed.checks.slice(0, 4) : [] };
+}
+
+async function runVerification(actions: Action[], finding: any, defaultRegion: string, creds: Creds): Promise<Verification> {
+  const plan = await planVerification(actions, finding);
+  if (plan.checks.length === 0) {
+    return { verified: false, summary: "No verification checks could be planned.", evidence: [] };
+  }
+  const evidence: Verification["evidence"] = [];
+  for (const c of plan.checks) {
+    // Reuse execAction shape — these are READ APIs but go through same protocol
+    const fakeAction: Action = { id: c.id, description: c.description, service: c.service, api: c.api, region: c.region, params: c.params };
+    const res = await execAction(fakeAction, defaultRegion, creds);
+    const text = res.response || "";
+    const containsOk = c.expect?.contains ? text.toLowerCase().includes(c.expect.contains.toLowerCase()) : true;
+    const notContainsOk = c.expect?.not_contains ? !text.toLowerCase().includes(c.expect.not_contains.toLowerCase()) : true;
+    const matched = res.ok && containsOk && notContainsOk;
+    evidence.push({
+      check: c.description,
+      service: c.service, api: c.api,
+      ok: res.ok, status: res.status,
+      matched,
+      expected: c.expect?.contains || c.expect?.not_contains || "(status only)",
+      actual_preview: text.slice(0, 300),
+      error: res.error,
+    });
+  }
+  const verified = evidence.every((e) => e.matched);
+  return {
+    verified,
+    summary: verified
+      ? `All ${evidence.length} post-fix checks passed — the change is live in AWS.`
+      : `${evidence.filter((e) => e.matched).length}/${evidence.length} checks passed. Fix may not have fully landed.`,
+    evidence,
+  };
+}
+
+// ============================================================
 // Handler
 // ============================================================
 Deno.serve(async (req) => {
@@ -436,6 +527,51 @@ Deno.serve(async (req) => {
       notes: allOk ? `Applied ${results.length} AWS API call(s) successfully.` : `Execution stopped after failure on ${results.findIndex(r => !r.ok) + 1}/${results.length}.`,
     });
 
+    // 3) AUTO-VERIFY — re-check live AWS state to prove the fix landed
+    let verification: Verification | null = null;
+    if (allOk) {
+      try {
+        verification = await runVerification(actions, finding, region, creds);
+
+        const verifyUpdate: Record<string, any> = {
+          verification_result: {
+            verified_at: new Date().toISOString(),
+            method: "blastline_auto_verify",
+            verified: verification.verified,
+            summary: verification.summary,
+            evidence: verification.evidence,
+          },
+        };
+        if (verification.verified) {
+          verifyUpdate.lifecycle_state = "verified";
+          verifyUpdate.verified_at = new Date().toISOString();
+          verifyUpdate.verified_by = user.id;
+          // Mark the finding itself as resolved
+          await admin.from("findings").update({
+            status: "resolved",
+            status_lifecycle: "resolved",
+            resolved_at: new Date().toISOString(),
+          }).eq("id", rem.finding_id);
+        }
+        await admin.from("remediations").update(verifyUpdate).eq("id", remediation_id);
+
+        await admin.from("remediation_events").insert({
+          user_id: user.id,
+          remediation_id,
+          finding_id: rem.finding_id,
+          attack_path_id: rem.attack_path_id,
+          event_type: verification.verified ? "verified" : "verification_failed",
+          actor_id: user.id,
+          actor_label: "Blastline auto-verifier",
+          command: verification.evidence.map((e) => `${e.service}.${e.api}`).join(" → "),
+          verification: verification as any,
+          notes: verification.summary,
+        });
+      } catch (e: any) {
+        console.error("verification error", e);
+      }
+    }
+
     return json({
       ok: allOk,
       lifecycle_state: lifecycle,
@@ -443,6 +579,7 @@ Deno.serve(async (req) => {
       console_url: primaryConsoleUrl,
       actions,
       results: update.aws_changes.results,
+      verification,
     });
   } catch (e: any) {
     console.error("apply-remediation error", e);
