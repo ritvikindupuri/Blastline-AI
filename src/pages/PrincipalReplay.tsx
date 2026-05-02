@@ -3,8 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, History, AlertTriangle, ShieldAlert, Activity, Trash2, User, Calendar, Cloud, Sparkles, BarChart3, Wand2, RefreshCw } from "lucide-react";
+import { Loader2, History, AlertTriangle, ShieldAlert, Activity, Trash2, User, Calendar, Cloud, Sparkles, BarChart3, Wand2, RefreshCw, Download, FileText, Filter, LineChart } from "lucide-react";
 import { toast } from "sonner";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import { Area, AreaChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
 
 const SEV_COLOR: Record<string, string> = {
   critical: "border-destructive/50 text-destructive bg-destructive/10",
@@ -24,6 +27,8 @@ export default function PrincipalReplay() {
   const [principals, setPrincipals] = useState<any[]>([]);
   const [loadingPrincipals, setLoadingPrincipals] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
+  const [filterType, setFilterType] = useState<"all" | "user" | "role">("all");
+  const [filterRisk, setFilterRisk] = useState<"all" | "admin" | "service">("all");
 
   async function load() {
     const { data: c } = await supabase.from("aws_connections").select("id, account_label, aws_account_id, default_region").order("created_at", { ascending: false });
@@ -32,6 +37,14 @@ export default function PrincipalReplay() {
     const { data } = await supabase.from("principal_replays").select("*").order("created_at", { ascending: false }).limit(100);
     setRows(data ?? []);
   }
+
+  const filteredPrincipals = principals.filter(p => {
+    if (filterType === "user" && !(p.hint || "").toLowerCase().includes("user")) return false;
+    if (filterType === "role" && !(p.hint || "").toLowerCase().includes("role")) return false;
+    if (filterRisk === "admin" && !/admin|root|power/i.test(p.arn)) return false;
+    if (filterRisk === "service" && !/service-role|aws-service-role/i.test(p.arn)) return false;
+    return true;
+  });
   useEffect(() => { load(); }, []);
 
   // Auto-fetch principals whenever the connection changes
@@ -106,6 +119,66 @@ export default function PrincipalReplay() {
     load();
   }
 
+  function exportPDF() {
+    if (!active) return;
+    const doc = new jsPDF();
+    const title = `Principal Replay Report: ${active.principal_arn.split("/").pop()}`;
+    doc.setFontSize(16);
+    doc.text(title, 14, 20);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Account ID: ${active.account_id ?? "Unknown"} | Region: ${active.region}`, 14, 28);
+    doc.text(`Window: ${new Date(active.window_start).toLocaleDateString()} to ${new Date(active.window_end).toLocaleDateString()}`, 14, 34);
+    doc.text(`Total Events: ${active.event_count}`, 14, 40);
+    doc.text(`Risk Score: ${active.ai_risk_score}/100`, 14, 46);
+
+    let currentY = 56;
+
+    if (active.ai_summary) {
+      doc.setFontSize(12);
+      doc.setTextColor(0);
+      doc.text("Behavioral Profile", 14, currentY);
+      currentY += 6;
+      doc.setFontSize(10);
+      doc.setTextColor(80);
+      const lines = doc.splitTextToSize(active.ai_summary, 180);
+      doc.text(lines, 14, currentY);
+      currentY += lines.length * 5 + 10;
+    }
+
+    if (active.ai_explanation) {
+      if (currentY > 250) { doc.addPage(); currentY = 20; }
+      doc.setFontSize(12);
+      doc.setTextColor(0);
+      doc.text("AI Risk Explanation & Suggested Actions", 14, currentY);
+      currentY += 6;
+      doc.setFontSize(10);
+      doc.setTextColor(80);
+      const lines = doc.splitTextToSize(active.ai_explanation, 180);
+      doc.text(lines, 14, currentY);
+      currentY += lines.length * 5 + 10;
+    }
+
+    const anomalies = active.anomalies as any[];
+    if (anomalies?.length > 0) {
+      if (currentY > 240) { doc.addPage(); currentY = 20; }
+      doc.setFontSize(12);
+      doc.setTextColor(0);
+      doc.text("Anomalies Detected", 14, currentY);
+      currentY += 6;
+      autoTable(doc, {
+        startY: currentY,
+        head: [["Severity", "Title", "Evidence"]],
+        body: anomalies.map((a) => [a.severity?.toUpperCase() || "", a.title || "", a.evidence || ""]),
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [40, 40, 40] }
+      });
+    }
+
+    doc.save(`replay_${active.principal_arn.split("/").pop()}.pdf`);
+  }
+
   return (
     <AppShell>
       <div className="space-y-8 max-w-[1400px]">
@@ -162,18 +235,30 @@ export default function PrincipalReplay() {
                     <>
                       <option value="">Select a principal…</option>
                       <optgroup label="IAM Users">
-                        {principals.filter((p) => (p.hint || "").toLowerCase().includes("user")).map((p) => (
+                        {filteredPrincipals.filter((p) => (p.hint || "").toLowerCase().includes("user")).map((p) => (
                           <option key={p.arn} value={p.arn}>{p.label} — {p.arn}</option>
                         ))}
                       </optgroup>
                       <optgroup label="IAM Roles">
-                        {principals.filter((p) => (p.hint || "").toLowerCase().includes("role")).map((p) => (
+                        {filteredPrincipals.filter((p) => (p.hint || "").toLowerCase().includes("role")).map((p) => (
                           <option key={p.arn} value={p.arn}>{p.label} — {p.arn}</option>
                         ))}
                       </optgroup>
                     </>
                   )}
                 </select>
+                <div className="flex bg-background border border-border rounded-md overflow-hidden h-10 divide-x divide-border">
+                  <select value={filterType} onChange={(e: any) => setFilterType(e.target.value)} className="bg-transparent text-xs font-mono px-2 outline-none" title="Filter by Type">
+                    <option value="all">All Types</option>
+                    <option value="user">Users</option>
+                    <option value="role">Roles</option>
+                  </select>
+                  <select value={filterRisk} onChange={(e: any) => setFilterRisk(e.target.value)} className="bg-transparent text-xs font-mono px-2 outline-none" title="Filter by Risk Profile">
+                    <option value="all">All Risks</option>
+                    <option value="admin">Admin/Power</option>
+                    <option value="service">Service Roles</option>
+                  </select>
+                </div>
                 <Button type="button" variant="outline" size="sm" onClick={fetchPrincipals} disabled={loadingPrincipals || !connectionId}
                   className="h-10 px-2.5" title="Refresh principals from AWS">
                   <RefreshCw className={`h-3.5 w-3.5 ${loadingPrincipals ? "animate-spin" : ""}`} />
@@ -256,9 +341,14 @@ export default function PrincipalReplay() {
                       <User className="h-3.5 w-3.5 text-primary" />
                       <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Behavioral Profile</span>
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => del(active.id)} className="h-7 text-muted-foreground hover:text-destructive">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" onClick={exportPDF} className="h-7 text-muted-foreground hover:text-primary gap-1.5" title="Export to PDF">
+                        <Download className="h-3.5 w-3.5" /> PDF
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => del(active.id)} className="h-7 text-muted-foreground hover:text-destructive">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="p-5">
                     <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -279,6 +369,48 @@ export default function PrincipalReplay() {
                     )}
                   </div>
                 </div>
+
+                {/* Timeline */}
+                {(active.timeline as any[])?.length > 0 && (
+                  <div className="rounded-2xl border border-border bg-card/60 backdrop-blur shadow-card overflow-hidden">
+                    <div className="px-5 py-3 border-b border-border bg-background/40 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <LineChart className="h-3.5 w-3.5 text-primary" />
+                        <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Activity Timeline</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-muted-foreground">requests per day</span>
+                    </div>
+                    <div className="p-5 h-48">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={active.timeline}>
+                          <defs>
+                            <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickMargin={10} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={40} />
+                          <RechartsTooltip contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: "12px", fontFamily: "monospace" }} />
+                          <Area type="monotone" dataKey="total" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorTotal)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                {/* Explain this replay */}
+                {active.ai_explanation && (
+                  <div className="rounded-2xl border border-border bg-card/60 backdrop-blur shadow-card overflow-hidden">
+                    <div className="px-5 py-3 border-b border-border bg-background/40 flex items-center gap-2">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">AI Risk Explanation & Next Steps</span>
+                    </div>
+                    <div className="p-5 text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                      {active.ai_explanation}
+                    </div>
+                  </div>
+                )}
 
                 {/* Anomalies */}
                 {(active.anomalies as any[])?.length > 0 && (

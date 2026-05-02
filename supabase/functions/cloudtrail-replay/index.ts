@@ -87,9 +87,9 @@ function principalShortName(arn: string): string {
 }
 
 // AI behavioral analysis via Lovable AI
-async function aiAnalyze(principalArn: string, topApis: any[], rawSample: any[], windowDays: number): Promise<{ summary: string; anomalies: any[]; risk: number }> {
+async function aiAnalyze(principalArn: string, topApis: any[], rawSample: any[], windowDays: number): Promise<{ summary: string; anomalies: any[]; risk: number; explanation: string }> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
-  if (!apiKey) return { summary: "AI key not configured", anomalies: [], risk: 0 };
+  if (!apiKey) return { summary: "AI key not configured", anomalies: [], risk: 0, explanation: "" };
   const prompt = `You are a senior AWS detection engineer reviewing real CloudTrail activity for an IAM principal.
 
 Principal: ${principalArn}
@@ -101,7 +101,12 @@ ${JSON.stringify(rawSample.slice(0, 30).map((e: any) => ({
   err: e.CloudTrailEvent ? (() => { try { return JSON.parse(e.CloudTrailEvent)?.errorCode; } catch { return null; } })() : null,
 })))}
 
-Return STRICT JSON: {"summary": "1-paragraph behavioral profile", "risk": 0-100, "anomalies": [{"title": "...", "severity": "low|medium|high|critical", "evidence": "..."}]}.
+Return STRICT JSON: {
+  "summary": "1-paragraph behavioral profile",
+  "risk": 0-100,
+  "explanation": "A brief explanation of why this principal was chosen and which signals drove the risk score",
+  "anomalies": [{"title": "...", "severity": "low|medium|high|critical", "evidence": "..."}]
+}.
 Look for: privilege escalation patterns (iam:Put*, sts:AssumeRole chains), data exfil (s3:Get* spikes), recon (Describe/List bursts), failed auth, unusual source IPs, off-hours activity, dormant principals suddenly active.`;
   const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -114,15 +119,15 @@ Look for: privilege escalation patterns (iam:Put*, sts:AssumeRole chains), data 
   });
   if (!r.ok) {
     const txt = await r.text();
-    return { summary: `AI analysis failed: ${txt.slice(0, 200)}`, anomalies: [], risk: 0 };
+    return { summary: `AI analysis failed: ${txt.slice(0, 200)}`, anomalies: [], risk: 0, explanation: "" };
   }
   const j = await r.json();
   const content = j?.choices?.[0]?.message?.content ?? "{}";
   try {
     const parsed = JSON.parse(content);
-    return { summary: parsed.summary ?? "", anomalies: parsed.anomalies ?? [], risk: Number(parsed.risk) || 0 };
+    return { summary: parsed.summary ?? "", anomalies: parsed.anomalies ?? [], risk: Number(parsed.risk) || 0, explanation: parsed.explanation ?? "" };
   } catch {
-    return { summary: content.slice(0, 500), anomalies: [], risk: 0 };
+    return { summary: content.slice(0, 500), anomalies: [], risk: 0, explanation: "" };
   }
 }
 
@@ -159,6 +164,27 @@ Deno.serve(async (req) => {
     const topApis = Object.entries(apiCounts).sort((a, b) => b[1] - a[1]).slice(0, 25).map(([api, count]) => ({ api, count }));
     const rawSample = events.slice(0, 30);
 
+    // Build timeline: Group by day, then by service
+    const timelineData: Record<string, Record<string, number>> = {};
+    for (const e of events) {
+      if (!e.EventTime) continue;
+      // Truncate to day "YYYY-MM-DD"
+      const day = e.EventTime.slice(0, 10);
+      const service = e.EventSource?.split(".")[0] || "unknown";
+      if (!timelineData[day]) timelineData[day] = {};
+      timelineData[day][service] = (timelineData[day][service] || 0) + 1;
+    }
+    const timeline = Object.entries(timelineData).sort((a, b) => a[0].localeCompare(b[0])).map(([date, services]) => {
+      const point: any = { date };
+      let total = 0;
+      for (const [s, c] of Object.entries(services)) {
+        point[s] = c;
+        total += c;
+      }
+      point.total = total;
+      return point;
+    });
+
     const analysis = await aiAnalyze(principal_arn, topApis, rawSample, windowDays);
 
     const { data: row, error: insErr } = await admin.from("principal_replays").insert({
@@ -167,6 +193,7 @@ Deno.serve(async (req) => {
       window_start: start.toISOString(), window_end: end.toISOString(),
       event_count: events.length, top_apis: topApis, anomalies: analysis.anomalies,
       ai_summary: analysis.summary, ai_risk_score: analysis.risk,
+      ai_explanation: analysis.explanation, timeline,
       raw_sample: rawSample, status: "completed",
     }).select().single();
     if (insErr) throw insErr;
