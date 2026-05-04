@@ -272,7 +272,7 @@ async function execAction(a: Action, defaultRegion: string, creds: Creds): Promi
 // ============================================================
 // AI planner — translates a remediation snippet into Action[]
 // ============================================================
-async function planActions(snippet: string, finding: any): Promise<Action[]> {
+async function planActions(snippet: string, finding: any): Promise<{ actions: Action[]; reason?: string; raw?: string }> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
@@ -287,7 +287,9 @@ Rules:
 - For IAM password policy, use UpdateAccountPasswordPolicy with full required fields.
 - Prefer the smallest set of idempotent calls (1-3 actions).
 - Do NOT create destructive calls (DeleteUser, DeleteBucket, TerminateInstances) unless the snippet explicitly removes a resource.
-- If you cannot safely translate, return {"actions":[],"reason":"..."}.`;
+- ALWAYS try to produce at least one action. Only return empty actions if the snippet is truly nonsensical.
+- If the snippet is a natural-language fix (no code), still infer the most likely AWS API call from the finding title and resource ARN.
+- If you cannot safely translate, return {"actions":[],"reason":"<why>"}.`;
 
   const user = `Finding: ${finding?.title || ""} (${finding?.check_id || ""})
 Service: ${finding?.service || ""} | Region: ${finding?.region || "us-east-1"} | ARN: ${finding?.resource_arn || "(none)"}
@@ -297,21 +299,44 @@ Snippet:
 ${snippet.slice(0, 8000)}
 \`\`\``;
 
-  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [{ role: "system", content: system }, { role: "user", content: user }],
-      response_format: { type: "json_object" },
-    }),
-  });
-  if (!r.ok) throw new Error(`AI planner failed: ${r.status} ${(await r.text()).slice(0, 300)}`);
-  const j = await r.json();
-  const content = j?.choices?.[0]?.message?.content || "{}";
-  const parsed = JSON.parse(content);
-  const actions: Action[] = Array.isArray(parsed?.actions) ? parsed.actions : [];
-  return actions.filter((a) => a && a.service && a.api).slice(0, 8);
+  async function callModel(model: string) {
+    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "system", content: system }, { role: "user", content: user }],
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!r.ok) throw new Error(`AI planner failed (${model}): ${r.status} ${(await r.text()).slice(0, 300)}`);
+    const j = await r.json();
+    const content = j?.choices?.[0]?.message?.content || "{}";
+    let parsed: any = {};
+    try { parsed = JSON.parse(content); } catch { parsed = {}; }
+    const actions: Action[] = (Array.isArray(parsed?.actions) ? parsed.actions : [])
+      .filter((a: any) => a && a.service && a.api)
+      .slice(0, 8);
+    return { actions, reason: parsed?.reason as string | undefined, raw: content };
+  }
+
+  // First pass: fast model
+  let result = await callModel("google/gemini-2.5-flash");
+  console.log(`[planActions] flash → ${result.actions.length} actions${result.reason ? `, reason: ${result.reason}` : ""}`);
+
+  // Retry with a stronger model if empty
+  if (result.actions.length === 0) {
+    console.log(`[planActions] retrying with gemini-2.5-pro. snippet preview: ${snippet.slice(0, 300)}`);
+    try {
+      const retry = await callModel("google/gemini-2.5-pro");
+      console.log(`[planActions] pro → ${retry.actions.length} actions${retry.reason ? `, reason: ${retry.reason}` : ""}`);
+      if (retry.actions.length > 0) return retry;
+      result = retry; // keep richer reason
+    } catch (e: any) {
+      console.error("[planActions] pro retry failed", e?.message);
+    }
+  }
+  return result;
 }
 
 // ============================================================
