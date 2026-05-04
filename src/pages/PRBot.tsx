@@ -4,7 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { GitPullRequest, Github, Check, ExternalLink, Loader2, Trash2, Sparkles, ShieldCheck, KeyRound, Wand2, ChevronRight, CircleAlert, FileCode2 } from "lucide-react";
+import { GitPullRequest, Github, Check, ExternalLink, Loader2, Trash2, Sparkles, ShieldCheck, KeyRound, Wand2, ChevronRight, CircleAlert, FileCode2, Settings, Webhook } from "lucide-react";
 import { toast } from "sonner";
 
 const VERDICT: Record<string, string> = {
@@ -268,8 +268,15 @@ export default function PRBot() {
                           {res.ok
                             ? <Check className="h-4 w-4 text-success shrink-0" />
                             : <CircleAlert className="h-4 w-4 text-destructive shrink-0" />}
-                          <span className="font-mono text-xs flex-1 truncate">{res.repo}</span>
-                          <span className="text-xs text-muted-foreground truncate max-w-[40%]">{res.message}</span>
+                          <a href={`https://github.com/${res.repo}`} target="_blank" rel="noreferrer"
+                             className="font-mono text-xs flex-1 truncate text-foreground hover:text-primary inline-flex items-center gap-1.5">
+                            {res.repo} <ExternalLink className="h-3 w-3 opacity-60" />
+                          </a>
+                          <span className="text-xs text-muted-foreground truncate max-w-[35%]">{res.message}</span>
+                          <a href={`https://github.com/${res.repo}/settings/hooks`} target="_blank" rel="noreferrer"
+                             className="text-[10px] font-mono px-2 py-0.5 rounded border border-border text-muted-foreground hover:text-primary hover:border-primary/40 inline-flex items-center gap-1">
+                            <Webhook className="h-3 w-3" /> hooks
+                          </a>
                         </div>
                       ))}
                     </div>
@@ -279,6 +286,53 @@ export default function PRBot() {
             </div>
           </div>
         </section>
+
+        {/* CONFIGURED REPOS — quick view of every repo wired up */}
+        {(cfg?.repo_allowlist?.length ?? 0) > 0 && (
+          <section className="rounded-2xl border border-border bg-card/60 backdrop-blur shadow-card overflow-hidden">
+            <header className="px-5 py-3 border-b border-border bg-background/40 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Github className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Configured Repos · live on GitHub</span>
+              </div>
+              <span className="text-[10px] font-mono text-muted-foreground">{cfg.repo_allowlist.length}</span>
+            </header>
+            <div className="divide-y divide-border/40">
+              {(cfg.repo_allowlist as string[]).map((repo) => (
+                <div key={repo} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-background/40 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Github className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <a href={`https://github.com/${repo}`} target="_blank" rel="noreferrer"
+                         className="font-mono text-sm hover:text-primary inline-flex items-center gap-1.5 truncate">
+                        {repo} <ExternalLink className="h-3 w-3 opacity-60" />
+                      </a>
+                      <div className="text-[10px] font-mono text-muted-foreground mt-0.5">pull_request + issue_comment hooks installed</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <a href={`https://github.com/${repo}`} target="_blank" rel="noreferrer"
+                       className="text-[11px] font-mono px-2.5 py-1 rounded border border-border hover:border-primary/40 hover:text-primary inline-flex items-center gap-1">
+                      <Github className="h-3 w-3" /> View repo
+                    </a>
+                    <a href={`https://github.com/${repo}/pulls`} target="_blank" rel="noreferrer"
+                       className="text-[11px] font-mono px-2.5 py-1 rounded border border-border hover:border-primary/40 hover:text-primary inline-flex items-center gap-1">
+                      <GitPullRequest className="h-3 w-3" /> Pull requests
+                    </a>
+                    <a href={`https://github.com/${repo}/settings/hooks`} target="_blank" rel="noreferrer"
+                       className="text-[11px] font-mono px-2.5 py-1 rounded border border-border hover:border-primary/40 hover:text-primary inline-flex items-center gap-1">
+                      <Webhook className="h-3 w-3" /> Webhook
+                    </a>
+                    <a href={`https://github.com/${repo}/settings`} target="_blank" rel="noreferrer"
+                       className="text-[11px] font-mono px-2 py-1 rounded border border-border hover:border-primary/40 hover:text-primary inline-flex items-center gap-1">
+                      <Settings className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* CUSTOM PLAN — collapsed by default */}
         <section className="rounded-2xl border border-border bg-card/60 backdrop-blur shadow-card overflow-hidden">
