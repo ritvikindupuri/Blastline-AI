@@ -477,9 +477,15 @@ Deno.serve(async (req) => {
     const snippet = rem.executed_script || rem.snippet || "";
     if (!snippet.trim()) return json({ error: "remediation has no snippet to execute" }, 400);
 
-    const actions = await planActions(snippet, finding);
+    const planned = await planActions(snippet, finding);
+    const actions = planned.actions;
     if (actions.length === 0) {
-      return json({ error: "AI could not produce a safe action plan from this snippet. Apply manually via the AWS Console." }, 422);
+      console.error("[apply-remediation] empty plan", { reason: planned.reason, snippet_preview: snippet.slice(0, 500), finding_title: finding?.title, check_id: finding?.check_id });
+      return json({
+        error: `AI could not produce a safe action plan: ${planned.reason || "snippet was too vague or contained no actionable AWS change"}. Edit the remediation snippet to include concrete resource names (bucket, role, security group ID, etc.) or apply manually via the AWS Console.`,
+        ai_reason: planned.reason,
+        ai_raw_preview: planned.raw?.slice(0, 400),
+      }, 422);
     }
 
     // Attach console URLs upfront
