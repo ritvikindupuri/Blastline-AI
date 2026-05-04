@@ -105,23 +105,16 @@ Deno.serve(async (req) => {
       }
 
       const webhookUrl = `${SUPABASE_URL}/functions/v1/github-pr-webhook?owner=${user.id}`;
-      const results: Array<{ repo: string; ok: boolean; status: number; message: string; existing?: boolean }> = [];
+      const payloadFor = (secret: string) => ({
+        name: "web",
+        active: true,
+        events: ["pull_request", "issue_comment"],
+        config: { url: webhookUrl, content_type: "json", secret, insecure_ssl: "0" },
+      });
 
-      for (const repo of selected) {
+      async function installOne(repo: string) {
+        const t0 = Date.now();
         try {
-          const payload = {
-            name: "web",
-            active: true,
-            events: ["pull_request", "issue_comment"],
-            config: {
-              url: webhookUrl,
-              content_type: "json",
-              secret: cfg.webhook_secret,
-              insecure_ssl: "0",
-            },
-          };
-
-          // Try to list existing hooks; if forbidden, skip listing and just try to POST.
           let existing: any = null;
           const hooksR = await gh(token, `/repos/${repo}/hooks?per_page=100`);
           if (hooksR.ok) {
@@ -133,34 +126,53 @@ Deno.serve(async (req) => {
             const patchR = await gh(token, `/repos/${repo}/hooks/${existing.id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
+              body: JSON.stringify(payloadFor(cfg.webhook_secret)),
             });
-            results.push({
-              repo, ok: patchR.ok, status: patchR.status, existing: true,
-              message: patchR.ok ? "updated existing webhook" : `update failed: ${(await patchR.text()).slice(0, 160)}`,
-            });
-          } else {
-            const postR = await gh(token, `/repos/${repo}/hooks`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
-            });
-            let message = "webhook installed";
-            if (!postR.ok) {
-              const txt = (await postR.text()).slice(0, 200);
-              if (postR.status === 404 || postR.status === 403) {
-                message = `missing 'Webhooks: Read & write' permission on this repo (GitHub ${postR.status})`;
-              } else {
-                message = `install failed (${postR.status}): ${txt}`;
-              }
-            }
-            results.push({ repo, ok: postR.ok, status: postR.status, message });
+            const ok = patchR.ok;
+            const message = ok ? "updated existing webhook" : `update failed (${patchR.status}): ${(await patchR.text()).slice(0, 160)}`;
+            return { repo, ok, status: patchR.status, existing: true, message, ms: Date.now() - t0 };
           }
+
+          const postR = await gh(token, `/repos/${repo}/hooks`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payloadFor(cfg.webhook_secret)),
+          });
+          let message = "webhook installed";
+          if (!postR.ok) {
+            const txt = (await postR.text()).slice(0, 200);
+            if (postR.status === 404 || postR.status === 403) {
+              message = `missing 'Webhooks: Read & write' permission (GitHub ${postR.status})`;
+            } else if (postR.status === 422) {
+              // hook already exists but list endpoint hid it (fine-grained token quirk)
+              message = "webhook already present (422 — treated as ok)";
+              return { repo, ok: true, status: 200, existing: true, message, ms: Date.now() - t0 };
+            } else {
+              message = `install failed (${postR.status}): ${txt}`;
+            }
+          }
+          return { repo, ok: postR.ok, status: postR.status, existing: false, message, ms: Date.now() - t0 };
         } catch (e: any) {
-          results.push({ repo, ok: false, status: 0, message: e?.message ?? String(e) });
+          return { repo, ok: false, status: 0, existing: false, message: e?.message ?? String(e), ms: Date.now() - t0 };
         }
       }
 
+      // Parallel install with a concurrency cap so we don't slam GitHub's secondary rate limiter.
+      const concurrency = 5;
+      const queue = [...selected];
+      const results: Array<Awaited<ReturnType<typeof installOne>>> = [];
+      async function worker() {
+        while (queue.length) {
+          const r = queue.shift()!;
+          const res = await installOne(r);
+          console.log(`[prbot-agent] ${res.repo} → ${res.ok ? "OK" : "FAIL"} (${res.status}, ${res.ms}ms) ${res.message}`);
+          results.push(res);
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(concurrency, selected.length) }, worker));
+
+      const okCount = results.filter((r) => r.ok).length;
+      console.log(`[prbot-agent] done: ${okCount}/${results.length} ok, webhook=${webhookUrl}`);
       return json({ ok: true, webhook_url: webhookUrl, results, config: cfg });
     }
 
