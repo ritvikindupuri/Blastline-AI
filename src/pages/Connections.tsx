@@ -11,13 +11,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { InfoTip } from "@/components/InfoTip";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
-const MIN_PRIVILEGE_POLICY = `{
-  "Version": "2012-10-17",
-  "Statement": [
+const MIN_PRIVILEGE_POLICY_BASE = {
+  Version: "2012-10-17",
+  Statement: [
     {
-      "Sid": "BlastlineReadOnly",
-      "Effect": "Allow",
-      "Action": [
+      Sid: "BlastlineReadOnly",
+      Effect: "Allow",
+      Action: [
         "iam:Get*", "iam:List*", "iam:GenerateCredentialReport", "iam:GenerateServiceLastAccessedDetails",
         "s3:GetBucket*", "s3:GetObject*", "s3:ListAllMyBuckets", "s3:GetEncryptionConfiguration",
         "ec2:Describe*", "lambda:Get*", "lambda:List*",
@@ -30,10 +30,29 @@ const MIN_PRIVILEGE_POLICY = `{
         "config:Describe*", "config:Get*", "config:List*",
         "sts:GetCallerIdentity"
       ],
-      "Resource": "*"
+      Resource: "*"
     }
   ]
-}`;
+};
+
+const AUTO_REMEDIATION_STATEMENT = {
+  Sid: "BlastlineAutoRemediationWrite",
+  Effect: "Allow",
+  Action: [
+    "iam:Update*", "iam:Put*", "iam:Delete*", "iam:Attach*", "iam:Detach*", "iam:Create*",
+    "s3:Put*", "s3:Delete*",
+    "ec2:Revoke*", "ec2:Authorize*", "ec2:Modify*", "ec2:Create*", "ec2:Delete*",
+    "rds:Modify*", "rds:Create*", "rds:Delete*",
+    "kms:Put*", "kms:Enable*", "kms:Disable*", "kms:Create*", "kms:ScheduleKeyDeletion",
+    "secretsmanager:Update*", "secretsmanager:Rotate*", "secretsmanager:Put*", "secretsmanager:Delete*",
+    "ecr:Put*", "ecr:Set*", "ecr:Delete*",
+    "lambda:Update*", "lambda:Put*", "lambda:Delete*",
+    "dynamodb:Update*", "dynamodb:Put*", "dynamodb:Delete*",
+    "cloudtrail:Update*", "cloudtrail:Put*", "cloudtrail:Delete*", "cloudtrail:Start*", "cloudtrail:Stop*",
+    "guardduty:Update*", "guardduty:Create*", "guardduty:Delete*"
+  ],
+  Resource: "*"
+};
 
 const AWS_POLICIES = {
   SecurityAudit: {
@@ -46,16 +65,22 @@ const AWS_POLICIES = {
     arn: "arn:aws:iam::aws:policy/ReadOnlyAccess",
     blurb: "Broader read-only access — required for deep resource enumeration (S3 contents, EC2, Lambda, RDS, etc.).",
   },
+  AdministratorAccess: {
+    name: "AdministratorAccess",
+    arn: "arn:aws:iam::aws:policy/AdministratorAccess",
+    blurb: "Full access — required for AI agent to perform auto remediation across all services.",
+  },
 } as const;
 
-type ServiceKey = "iam" | "s3" | "ec2_lambda" | "rds_dynamodb" | "cloudtrail_guardduty";
+type ServiceKey = "iam" | "s3" | "ec2_lambda" | "rds_dynamodb" | "cloudtrail_guardduty" | "auto_remediation";
 
-const AUDIT_SERVICES: { key: ServiceKey; label: string; needs: ("SecurityAudit" | "ReadOnlyAccess")[] }[] = [
+const AUDIT_SERVICES: { key: ServiceKey; label: string; needs: ("SecurityAudit" | "ReadOnlyAccess" | "AdministratorAccess")[] }[] = [
   { key: "iam", label: "IAM (users, roles, policies)", needs: ["SecurityAudit"] },
   { key: "cloudtrail_guardduty", label: "CloudTrail & GuardDuty", needs: ["SecurityAudit"] },
   { key: "s3", label: "S3 (buckets + object-level metadata)", needs: ["SecurityAudit", "ReadOnlyAccess"] },
   { key: "ec2_lambda", label: "EC2 & Lambda enumeration", needs: ["ReadOnlyAccess"] },
   { key: "rds_dynamodb", label: "RDS & DynamoDB", needs: ["ReadOnlyAccess"] },
+  { key: "auto_remediation", label: "Auto Remediation (AI write access)", needs: ["AdministratorAccess"] },
 ];
 
 export default function Connections() {
@@ -73,11 +98,19 @@ export default function Connections() {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const recommended = (() => {
-    const set = new Set<"SecurityAudit" | "ReadOnlyAccess">();
+    const set = new Set<"SecurityAudit" | "ReadOnlyAccess" | "AdministratorAccess">();
     enabledServices.forEach((s) => {
       AUDIT_SERVICES.find((x) => x.key === s)?.needs.forEach((n) => set.add(n));
     });
     return set;
+  })();
+
+  const minPrivilegePolicyStr = (() => {
+    const policy = { ...MIN_PRIVILEGE_POLICY_BASE, Statement: [...MIN_PRIVILEGE_POLICY_BASE.Statement] };
+    if (enabledServices.has("auto_remediation")) {
+      policy.Statement.push(AUTO_REMEDIATION_STATEMENT);
+    }
+    return JSON.stringify(policy, null, 2);
   })();
 
   function copy(text: string, label: string) {
@@ -207,14 +240,11 @@ export default function Connections() {
               <div className="rounded-md border border-primary/40 bg-primary/5 p-3">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="text-xs font-mono uppercase tracking-wider text-primary flex items-center gap-1.5">⚡ Fastest · AWS CLI <InfoTip>Run from any shell with AWS CLI configured against the target account.</InfoTip></div>
-                  <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => copy(`aws iam create-user --user-name blastline-auditor\naws iam attach-user-policy --user-name blastline-auditor --policy-arn arn:aws:iam::aws:policy/SecurityAudit\naws iam attach-user-policy --user-name blastline-auditor --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess\naws iam create-access-key --user-name blastline-auditor`, "CLI commands")}>
+                  <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => copy(`aws iam create-user --user-name blastline-auditor\n${Array.from(recommended).map(p => `aws iam attach-user-policy --user-name blastline-auditor --policy-arn arn:aws:iam::aws:policy/${p}`).join('\n')}\naws iam create-access-key --user-name blastline-auditor`, "CLI commands")}>
                     <Copy className="h-3 w-3" /> Copy
                   </Button>
                 </div>
-                <pre className="font-mono text-[11px] leading-relaxed overflow-x-auto whitespace-pre text-foreground">{`aws iam create-user --user-name blastline-auditor
-aws iam attach-user-policy --user-name blastline-auditor --policy-arn arn:aws:iam::aws:policy/SecurityAudit
-aws iam attach-user-policy --user-name blastline-auditor --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess
-aws iam create-access-key --user-name blastline-auditor`}</pre>
+                <pre className="font-mono text-[11px] leading-relaxed overflow-x-auto whitespace-pre text-foreground">{`aws iam create-user --user-name blastline-auditor\n${Array.from(recommended).map(p => `aws iam attach-user-policy --user-name blastline-auditor --policy-arn arn:aws:iam::aws:policy/${p}`).join('\n')}\naws iam create-access-key --user-name blastline-auditor`}</pre>
                 <div className="text-[11px] text-muted-foreground mt-2">Copy the <span className="font-mono">AccessKeyId</span> + <span className="font-mono">SecretAccessKey</span> from the last command's output and paste in step 3.</div>
               </div>
 
@@ -239,7 +269,7 @@ aws iam create-access-key --user-name blastline-auditor`}</pre>
               <div className="space-y-1.5">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Policies to attach</div>
                 {(Object.values(AWS_POLICIES)).map((p) => {
-                  const isRecommended = recommended.has(p.name as "SecurityAudit" | "ReadOnlyAccess");
+                  const isRecommended = recommended.has(p.name as "SecurityAudit" | "ReadOnlyAccess" | "AdministratorAccess");
                   return (
                     <div key={p.arn} className={`rounded-md border ${isRecommended ? "border-primary/60 bg-primary/5" : "border-border bg-background/40"} px-3 py-2 flex items-center gap-3 flex-wrap`}>
                       <span className="font-display font-semibold text-sm">{p.name}</span>
@@ -263,9 +293,9 @@ aws iam create-access-key --user-name blastline-auditor`}</pre>
                 <div className="rounded-md border border-border bg-background/60 overflow-hidden">
                   <div className="flex items-center justify-between border-b border-border bg-background/80 px-3 py-1.5">
                     <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">BlastlineReadOnly · IAM policy JSON</span>
-                    <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => copy(MIN_PRIVILEGE_POLICY, "Policy JSON")}><Copy className="h-3 w-3" /> Copy JSON</Button>
+                    <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={() => copy(minPrivilegePolicyStr, "Policy JSON")}><Copy className="h-3 w-3" /> Copy JSON</Button>
                   </div>
-                  <pre className="p-3 font-mono text-[11px] leading-relaxed overflow-x-auto whitespace-pre max-h-64">{MIN_PRIVILEGE_POLICY}</pre>
+                  <pre className="p-3 font-mono text-[11px] leading-relaxed overflow-x-auto whitespace-pre max-h-64">{minPrivilegePolicyStr}</pre>
                   <div className="px-3 py-2 text-[11px] text-muted-foreground border-t border-border">In AWS: <span className="font-mono text-foreground">IAM → Policies → Create policy → JSON</span> → paste → name it <span className="font-mono text-foreground">BlastlineReadOnly</span>.</div>
                 </div>
               )}
