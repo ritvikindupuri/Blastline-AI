@@ -12,12 +12,12 @@ function awsConsoleFor(finding?: any, remediation?: any) {
   const service = String(finding?.service || "").toLowerCase();
   const arn: string = finding?.resource_arn || "";
   if (service === "iam" && arn) {
-    if (arn.includes(":user/")) return `https://us-east-1.console.aws.amazon.com/iam/home#/users/details/${encodeURIComponent(arn.split(":user/")[1])}`;
-    if (arn.includes(":role/")) return `https://us-east-1.console.aws.amazon.com/iam/home#/roles/details/${encodeURIComponent(arn.split(":role/")[1])}`;
-    if (arn.includes("password-policy")) return `https://us-east-1.console.aws.amazon.com/iam/home#/account_settings`;
-    return "https://us-east-1.console.aws.amazon.com/iam/home#/home";
+    if (arn.includes(":user/")) return `https://console.aws.amazon.com/iam/home#/users/details/${encodeURIComponent(arn.split(":user/")[1])}`;
+    if (arn.includes(":role/")) return `https://console.aws.amazon.com/iam/home#/roles/details/${encodeURIComponent(arn.split(":role/")[1])}`;
+    if (arn.includes("password-policy")) return `https://console.aws.amazon.com/iam/home#/account_settings`;
+    return "https://console.aws.amazon.com/iam/home#/home";
   }
-  if (service === "iam") return "https://us-east-1.console.aws.amazon.com/iam/home#/home";
+  if (service === "iam") return "https://console.aws.amazon.com/iam/home#/home";
   if (service === "s3" && arn.startsWith("arn:aws:s3:::")) {
     const bucket = arn.replace("arn:aws:s3:::", "").split("/")[0];
     return `https://s3.console.aws.amazon.com/s3/buckets/${encodeURIComponent(bucket)}?region=${region}&tab=permissions`;
