@@ -4,10 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/layout/AppShell";
 import { SEV_RING, type Severity } from "@/lib/severity";
 import { Button } from "@/components/ui/button";
-import ReactFlow, { Background, BackgroundVariant, Controls, Handle, MarkerType, MiniMap, Position, type NodeProps } from "reactflow";
+import ReactFlow, { Background, BackgroundVariant, Controls, Handle, MarkerType, MiniMap, Position, type NodeProps, type Edge, type Node } from "reactflow";
 import { ExternalLink, GitBranch, ShieldCheck, Terminal, Globe, KeyRound, Database, ServerCog, Cloud, Network as NetworkIcon, AlertTriangle, X, ChevronRight, type LucideIcon } from "lucide-react";
 import "reactflow/dist/style.css";
 import { RemediationLifecycle } from "@/components/RemediationLifecycle";
+import dagre from "dagre";
 
 type GraphNodeData = {
   label: string;
@@ -85,50 +86,82 @@ function AttackNode({ data, selected }: NodeProps<GraphNodeData>) {
     : data.severity === "medium" ? "hsl(var(--medium))"
     : data.severity === "low" ? "hsl(var(--low))"
     : "hsl(var(--muted-foreground))";
+
   return (
     <div
-      className={`group relative w-[220px] rounded-md border bg-card shadow-card transition-all duration-150 ${
+      className={`group relative flex h-14 w-14 cursor-pointer items-center justify-center rounded-full border-2 bg-card shadow-card transition-all duration-300 ${
         active
-          ? "border-primary shadow-glow"
+          ? "border-primary shadow-[0_0_15px_rgba(var(--primary),0.5)] scale-110 z-10"
           : data.dimmed
-            ? "border-border/30 opacity-30"
-            : "border-border hover:border-primary/70"
+            ? "border-border/30 opacity-40 scale-95"
+            : "border-border hover:border-primary/50 hover:scale-105"
       }`}
-      style={{ borderLeftColor: sevColor, borderLeftWidth: 3 }}
+      style={{
+        borderColor: active ? undefined : sevColor,
+        backgroundColor: active ? "hsl(var(--primary)/0.1)" : undefined
+      }}
     >
-      <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-2 !border-border !bg-background" />
-      <Handle type="source" position={Position.Right} className="!h-2 !w-2 !border-2 !border-primary !bg-primary" />
+      <Handle type="target" position={Position.Top} className="opacity-0" />
+      <Handle type="source" position={Position.Bottom} className="opacity-0" />
 
-      {/* Header strip */}
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-background/50 px-2.5 py-1">
-        <div className="flex min-w-0 items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-          <span className="tabular-nums text-foreground/70">#{String((data.index ?? 0) + 1).padStart(2, "0")}</span>
-          <span className="text-border">·</span>
-          <span className="truncate">{data.kind || "step"}</span>
-        </div>
-        {data.severity && (
-          <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider" style={{ color: sevColor }}>
-            {data.severity}
-          </span>
-        )}
-      </div>
+      <Icon
+        className={`h-6 w-6 transition-colors duration-300 ${active ? "text-primary" : ""}`}
+        style={{ color: active ? undefined : sevColor }}
+      />
 
-      <div className="flex items-start gap-2 px-2.5 py-2">
-        <div
-          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-background/60"
-          style={{ color: sevColor }}
-        >
-          <Icon className="h-3.5 w-3.5" />
-        </div>
-        <div className="min-w-0 flex-1 break-words font-mono text-[11px] leading-snug text-foreground line-clamp-3">
-          {data.label}
-        </div>
+      {/* Tooltip on hover/active */}
+      <div
+        className={`absolute -bottom-8 left-1/2 flex -translate-x-1/2 whitespace-nowrap rounded bg-popover px-2 py-1 text-[10px] font-mono text-popover-foreground shadow-md transition-opacity duration-200 pointer-events-none ${
+          active ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        }`}
+      >
+        <span className="font-bold mr-1">#{String((data.index ?? 0) + 1).padStart(2, "0")}</span>
+        {data.kind || "step"}
       </div>
     </div>
   );
 }
 
 const nodeTypes = { attackNode: AttackNode };
+
+const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = "TB") => {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
+
+  // node width and height
+  const nodeWidth = 70;
+  const nodeHeight = 90; // extra height to account for the tooltip below it
+
+  dagreGraph.setGraph({ rankdir: direction, nodesep: 60, ranksep: 80 });
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+  });
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(dagreGraph);
+
+  const newNodes = nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    const newNode = {
+      ...node,
+      targetPosition: direction === "TB" ? Position.Top : Position.Left,
+      sourcePosition: direction === "TB" ? Position.Bottom : Position.Right,
+      // We are shifting the dagre node position (anchor=center center) to the top left
+      // so it matches the React Flow node anchor point (top left).
+      position: {
+        x: nodeWithPosition.x - nodeWidth / 2,
+        y: nodeWithPosition.y - nodeHeight / 2,
+      },
+    };
+    return newNode;
+  });
+
+  return { nodes: newNodes, edges };
+};
 
 export default function AttackPathDetail() {
   const { id } = useParams();
@@ -200,22 +233,20 @@ export default function AttackPathDetail() {
     }
 
     const hasHover = Boolean(hoveredNodeId || hoveredEdgeId);
-    // Auto-layout into a left→right chain when explicit positions aren't provided
+
     const rawNodes = g.nodes ?? [];
-    const nodes = rawNodes.map((n: any, i: number) => {
+    const initialNodes: Node[] = rawNodes.map((n: any, i: number) => {
       const nodeId = String(n.id ?? i);
       const active = activeNodeIds.has(nodeId);
-      const fallbackPos = { x: i * 280, y: 0 };
       return {
         id: nodeId,
         type: "attackNode",
-        sourcePosition: Position.Right,
-        targetPosition: Position.Left,
         data: { label: n.label ?? n.id ?? `node-${i}`, kind: n.kind, index: i, active, dimmed: hasHover && !active, severity: n.severity ?? path?.severity },
-        position: n.position ?? fallbackPos,
+        position: { x: 0, y: 0 }, // Position will be overwritten by dagre
       };
     });
-    const edges = rawEdges.map((e: any, i: number) => {
+
+    const initialEdges: Edge[] = rawEdges.map((e: any, i: number) => {
       const edgeId = String(e.id ?? i);
       const active = activeEdgeIds.has(edgeId);
       const dimmed = hasHover && !active;
@@ -227,15 +258,16 @@ export default function AttackPathDetail() {
         type: "smoothstep",
         animated: active,
         interactionWidth: 28,
-        markerEnd: { type: MarkerType.ArrowClosed, color: active ? "hsl(36 100% 50%)" : "hsl(215 15% 55%)", width: 18, height: 18 },
-        style: { stroke: active ? "hsl(36 100% 50%)" : "hsl(215 25% 45%)", strokeWidth: active ? 2 : 1.25, opacity: dimmed ? 0.2 : 0.95 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: active ? "hsl(36 100% 50%)" : "hsl(215 15% 55%)", width: 22, height: 22 },
+        style: { stroke: active ? "hsl(36 100% 50%)" : "hsl(215 25% 45%)", strokeWidth: active ? 2.5 : 1.5, opacity: dimmed ? 0.2 : 0.8 },
         labelBgPadding: [8, 4] as [number, number],
         labelBgBorderRadius: 4,
         labelBgStyle: { fill: "hsl(215 51% 12%)", fillOpacity: 0.95, stroke: active ? "hsl(36 100% 50%)" : "hsl(215 35% 22%)", strokeWidth: 1 },
         labelStyle: { fill: active ? "hsl(36 100% 60%)" : "hsl(215 15% 80%)", fontSize: 10, fontFamily: "IBM Plex Mono, monospace", fontWeight: 600, textTransform: "uppercase" as const },
       };
     });
-    return { nodes, edges };
+
+    return getLayoutedElements(initialNodes, initialEdges, "TB");
   }, [path, hoveredNodeId, hoveredEdgeId]);
 
   if (!path) return <AppShell><div className="text-muted-foreground">Loading…</div></AppShell>;
