@@ -556,6 +556,73 @@ Deno.serve(async (req) => {
       outputLines.push("");
     }
 
+    let refinedSnippet = snippet;
+
+    // AI AUTO-REFINE: If it failed, ask AI to explain and suggest a new snippet
+    if (!allOk) {
+      const failedResult = results.find((r) => !r.ok);
+      const failedAction = failedResult?.action;
+      const errorMsg = failedResult?.error || "Unknown error";
+      const awsResponse = failedResult?.response || "No response body";
+
+      const system = `You are an expert AWS Remediation Engineer. The previous execution of a remediation script failed.
+Analyze the following failure details:
+1. Identify why the AWS API call failed based on the error message and AWS response.
+2. Provide a clear, brief explanation of the failure.
+3. Generate a refined, corrected snippet (Terraform/CloudFormation/CLI) that fixes the issue so the user can try again.
+
+Output strictly as JSON:
+{
+  "explanation": "A short, actionable explanation of why it failed and how it was fixed.",
+  "refined_snippet": "The updated snippet text."
+}`;
+
+      const userPrompt = `
+Original Snippet:
+${snippet}
+
+Failed Action: ${failedAction?.service}.${failedAction?.api}
+Params: ${JSON.stringify(failedAction?.params)}
+Error: ${errorMsg}
+AWS Response: ${awsResponse}
+`;
+
+      try {
+        const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-4o",
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: system },
+              { role: "user", content: userPrompt }
+            ]
+          }),
+        });
+
+        if (resp.ok) {
+          const body = await resp.json();
+          const content = JSON.parse(body.choices[0].message.content);
+          if (content.explanation && content.refined_snippet) {
+            outputLines.push(`── AI FAILURE ANALYSIS & REFINEMENT ──`);
+            outputLines.push(`   Explanation: ${content.explanation}`);
+            outputLines.push(`   The script snippet has been automatically updated with the proposed fix.`);
+            outputLines.push(`   Please review the new script and click 'Apply' again.`);
+
+            refinedSnippet = content.refined_snippet;
+          }
+        } else {
+          console.error("AI auto-refine failed", await resp.text());
+        }
+      } catch (err) {
+        console.error("AI auto-refine error", err);
+      }
+    }
+
     const exec_status = allOk ? "applied" : "failed";
     const lifecycle: string = allOk ? "executed" : rem.lifecycle_state;
 
@@ -563,7 +630,8 @@ Deno.serve(async (req) => {
       lifecycle_state: lifecycle,
       execution_status: exec_status,
       execution_output: outputLines.join("\n"),
-      executed_script: snippet,
+      executed_script: refinedSnippet,
+      snippet: refinedSnippet, // Ensure the UI sees the new snippet for editing
       executed_by: user.id,
       executed_at: new Date().toISOString(),
       applied: allOk,
