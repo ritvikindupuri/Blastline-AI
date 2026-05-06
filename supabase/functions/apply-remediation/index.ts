@@ -263,7 +263,7 @@ async function execAction(a: Action, defaultRegion: string, creds: Creds): Promi
     }
 
     const text = await resp!.text();
-    return { action: a, ok: resp!.ok, status: resp!.status, response: text.slice(0, 1500) };
+    return { action: a, ok: resp!.ok, status: resp!.status, response: text.slice(0, 8000) };
   } catch (e: any) {
     return { action: a, ok: false, error: e?.message ?? String(e) };
   }
