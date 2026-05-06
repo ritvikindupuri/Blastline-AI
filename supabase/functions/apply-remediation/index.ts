@@ -518,8 +518,16 @@ Deno.serve(async (req) => {
       outputLines.push(`── ${r.action.service}.${r.action.api} ${r.ok ? "✓" : "✗"} (${r.status ?? "ERR"})`);
       outputLines.push(`   ${r.action.description}`);
       outputLines.push(`   params: ${JSON.stringify(r.action.params)}`);
+      if (r.action.console_url) outputLines.push(`   aws console: ${r.action.console_url}`);
       if (r.error) outputLines.push(`   error: ${r.error}`);
-      else if (!r.ok && r.response) outputLines.push(`   response: ${r.response.slice(0, 400)}`);
+      if (r.response && r.response.trim()) {
+        outputLines.push(`   ── AWS response (HTTP ${r.status ?? "ERR"}) ──`);
+        const pretty = prettyAwsResponse(r.response);
+        for (const line of pretty.split("\n")) outputLines.push(`   ${line}`);
+      } else if (r.ok) {
+        outputLines.push(`   ── AWS response (HTTP ${r.status}) ──`);
+        outputLines.push(`   (empty body — AWS returned success with no payload)`);
+      }
       outputLines.push("");
     }
 
