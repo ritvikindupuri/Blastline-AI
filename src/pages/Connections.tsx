@@ -40,16 +40,28 @@ const AUTO_REMEDIATION_STATEMENT = {
   Effect: "Allow",
   Action: [
     "iam:Update*", "iam:Put*", "iam:Delete*", "iam:Attach*", "iam:Detach*", "iam:Create*",
+    "iam:UpdateAccountPasswordPolicy", "iam:GetAccountPasswordPolicy",
+    "iam:TagUser", "iam:TagRole", "iam:TagPolicy", "iam:UntagUser", "iam:UntagRole",
     "s3:Put*", "s3:Delete*",
+    "s3:PutBucketPolicy", "s3:PutBucketPublicAccessBlock", "s3:PutBucketEncryption",
+    "s3:PutBucketVersioning", "s3:PutBucketLogging", "s3:PutBucketAcl", "s3:PutBucketCORS",
+    "s3:PutBucketLifecycleConfiguration", "s3:PutBucketNotification",
     "ec2:Revoke*", "ec2:Authorize*", "ec2:Modify*", "ec2:Create*", "ec2:Delete*",
+    "ec2:EnableEbsEncryptionByDefault", "ec2:DisableEbsEncryptionByDefault",
     "rds:Modify*", "rds:Create*", "rds:Delete*",
+    "rds:ModifyDBInstance", "rds:ModifyDBCluster", "rds:ModifyDBSnapshotAttribute",
     "kms:Put*", "kms:Enable*", "kms:Disable*", "kms:Create*", "kms:ScheduleKeyDeletion",
+    "kms:EnableKeyRotation", "kms:TagResource",
     "secretsmanager:Update*", "secretsmanager:Rotate*", "secretsmanager:Put*", "secretsmanager:Delete*",
     "ecr:Put*", "ecr:Set*", "ecr:Delete*",
     "lambda:Update*", "lambda:Put*", "lambda:Delete*",
     "dynamodb:Update*", "dynamodb:Put*", "dynamodb:Delete*",
     "cloudtrail:Update*", "cloudtrail:Put*", "cloudtrail:Delete*", "cloudtrail:Start*", "cloudtrail:Stop*",
-    "guardduty:Update*", "guardduty:Create*", "guardduty:Delete*"
+    "guardduty:Update*", "guardduty:Create*", "guardduty:Delete*",
+    "cloudwatch:Put*", "cloudwatch:Delete*", "cloudwatch:DescribeAlarms",
+    "logs:Put*", "logs:Create*", "logs:Delete*", "logs:DescribeMetricFilters",
+    "sns:Create*", "sns:Subscribe", "sns:SetTopicAttributes", "sns:Publish",
+    "config:Put*", "config:Start*", "config:Stop*", "config:Delete*"
   ],
   Resource: "*"
 };
