@@ -96,6 +96,31 @@ type ExecResult = {
   error?: string;
 };
 
+function prettyAwsResponse(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "(empty)";
+  // JSON
+  if (t.startsWith("{") || t.startsWith("[")) {
+    try { return JSON.stringify(JSON.parse(t), null, 2); } catch { /* fallthrough */ }
+  }
+  // XML — pretty-print with simple indentation
+  if (t.startsWith("<")) {
+    const withBreaks = t.replace(/></g, ">\n<");
+    const lines = withBreaks.split("\n");
+    let depth = 0;
+    const out: string[] = [];
+    for (const ln of lines) {
+      const isClose = /^<\//.test(ln);
+      const isSelfOrDecl = /\/>$/.test(ln) || /^<\?/.test(ln) || /^<!/.test(ln);
+      if (isClose) depth = Math.max(0, depth - 1);
+      out.push("  ".repeat(depth) + ln);
+      if (!isClose && !isSelfOrDecl && /^<[^/!?]/.test(ln) && !/<\/[^>]+>\s*$/.test(ln)) depth++;
+    }
+    return out.join("\n");
+  }
+  return t;
+}
+
 function consoleUrlFor(action: Action, region: string): string {
   const r = action.region || region;
   const p = action.params || {};
@@ -263,7 +288,7 @@ async function execAction(a: Action, defaultRegion: string, creds: Creds): Promi
     }
 
     const text = await resp!.text();
-    return { action: a, ok: resp!.ok, status: resp!.status, response: text.slice(0, 1500) };
+    return { action: a, ok: resp!.ok, status: resp!.status, response: text.slice(0, 8000) };
   } catch (e: any) {
     return { action: a, ok: false, error: e?.message ?? String(e) };
   }
@@ -518,8 +543,16 @@ Deno.serve(async (req) => {
       outputLines.push(`── ${r.action.service}.${r.action.api} ${r.ok ? "✓" : "✗"} (${r.status ?? "ERR"})`);
       outputLines.push(`   ${r.action.description}`);
       outputLines.push(`   params: ${JSON.stringify(r.action.params)}`);
+      if (r.action.console_url) outputLines.push(`   aws console: ${r.action.console_url}`);
       if (r.error) outputLines.push(`   error: ${r.error}`);
-      else if (!r.ok && r.response) outputLines.push(`   response: ${r.response.slice(0, 400)}`);
+      if (r.response && r.response.trim()) {
+        outputLines.push(`   ── AWS response (HTTP ${r.status ?? "ERR"}) ──`);
+        const pretty = prettyAwsResponse(r.response);
+        for (const line of pretty.split("\n")) outputLines.push(`   ${line}`);
+      } else if (r.ok) {
+        outputLines.push(`   ── AWS response (HTTP ${r.status}) ──`);
+        outputLines.push(`   (empty body — AWS returned success with no payload)`);
+      }
       outputLines.push("");
     }
 
