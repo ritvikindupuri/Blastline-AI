@@ -96,6 +96,31 @@ type ExecResult = {
   error?: string;
 };
 
+function prettyAwsResponse(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "(empty)";
+  // JSON
+  if (t.startsWith("{") || t.startsWith("[")) {
+    try { return JSON.stringify(JSON.parse(t), null, 2); } catch { /* fallthrough */ }
+  }
+  // XML — pretty-print with simple indentation
+  if (t.startsWith("<")) {
+    const withBreaks = t.replace(/></g, ">\n<");
+    const lines = withBreaks.split("\n");
+    let depth = 0;
+    const out: string[] = [];
+    for (const ln of lines) {
+      const isClose = /^<\//.test(ln);
+      const isSelfOrDecl = /\/>$/.test(ln) || /^<\?/.test(ln) || /^<!/.test(ln);
+      if (isClose) depth = Math.max(0, depth - 1);
+      out.push("  ".repeat(depth) + ln);
+      if (!isClose && !isSelfOrDecl && /^<[^/!?]/.test(ln) && !/<\/[^>]+>\s*$/.test(ln)) depth++;
+    }
+    return out.join("\n");
+  }
+  return t;
+}
+
 function consoleUrlFor(action: Action, region: string): string {
   const r = action.region || region;
   const p = action.params || {};
