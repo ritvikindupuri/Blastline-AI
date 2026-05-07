@@ -81,7 +81,7 @@ async function awsRequest(opts: {
 type Action = {
   id: string;
   description: string;
-  service: "s3" | "iam" | "ec2" | "rds" | "kms" | "logs" | "cloudtrail" | "lambda" | "secretsmanager";
+  service: "s3" | "iam" | "ec2" | "rds" | "kms" | "logs" | "cloudtrail" | "lambda" | "secretsmanager" | "guardduty";
   api: string; // e.g. PutBucketPublicAccessBlock
   region?: string;
   params: Record<string, any>;
@@ -126,31 +126,33 @@ function consoleUrlFor(action: Action, region: string): string {
   const p = action.params || {};
   switch (action.service) {
     case "iam":
-      if (p.UserName) return `https://us-east-1.console.aws.amazon.com/iam/home#/users/details/${encodeURIComponent(p.UserName)}`;
-      if (p.RoleName) return `https://us-east-1.console.aws.amazon.com/iam/home#/roles/details/${encodeURIComponent(p.RoleName)}`;
-      if (action.api.includes("PasswordPolicy")) return "https://us-east-1.console.aws.amazon.com/iam/home#/account_settings";
-      return "https://us-east-1.console.aws.amazon.com/iam/home#/home";
+      if (p.UserName) return `https://console.aws.amazon.com/iam/home#/users/details/${encodeURIComponent(p.UserName)}`;
+      if (p.RoleName) return `https://console.aws.amazon.com/iam/home#/roles/details/${encodeURIComponent(p.RoleName)}`;
+      if (action.api.includes("PasswordPolicy")) return "https://console.aws.amazon.com/iam/home#/account_settings";
+      return "https://console.aws.amazon.com/iam/home#/home";
     case "s3":
       if (p.Bucket) return `https://s3.console.aws.amazon.com/s3/buckets/${encodeURIComponent(p.Bucket)}?region=${r}&tab=permissions`;
       return "https://s3.console.aws.amazon.com/s3/home";
     case "ec2":
-      if (p.GroupId) return `https://${r}.console.aws.amazon.com/ec2/home?region=${r}#SecurityGroup:groupId=${p.GroupId}`;
-      return `https://${r}.console.aws.amazon.com/ec2/home?region=${r}`;
+      if (p.GroupId) return `https://console.aws.amazon.com/ec2/home?region=${r}#SecurityGroup:groupId=${p.GroupId}`;
+      return `https://console.aws.amazon.com/ec2/home?region=${r}`;
     case "rds":
-      if (p.DBInstanceIdentifier) return `https://${r}.console.aws.amazon.com/rds/home?region=${r}#database:id=${p.DBInstanceIdentifier};is-cluster=false`;
-      return `https://${r}.console.aws.amazon.com/rds/home?region=${r}#databases:`;
+      if (p.DBInstanceIdentifier) return `https://console.aws.amazon.com/rds/home?region=${r}#database:id=${p.DBInstanceIdentifier};is-cluster=false`;
+      return `https://console.aws.amazon.com/rds/home?region=${r}#databases:`;
     case "kms":
-      if (p.KeyId) return `https://${r}.console.aws.amazon.com/kms/home?region=${r}#/kms/keys/${p.KeyId}`;
-      return `https://${r}.console.aws.amazon.com/kms/home?region=${r}`;
+      if (p.KeyId) return `https://console.aws.amazon.com/kms/home?region=${r}#/kms/keys/${p.KeyId}`;
+      return `https://console.aws.amazon.com/kms/home?region=${r}`;
     case "logs":
-      return `https://${r}.console.aws.amazon.com/cloudwatch/home?region=${r}#logsV2:log-groups`;
+      return `https://console.aws.amazon.com/cloudwatch/home?region=${r}#logsV2:log-groups`;
     case "cloudtrail":
-      return `https://${r}.console.aws.amazon.com/cloudtrailv2/home?region=${r}#/dashboard`;
+      return `https://console.aws.amazon.com/cloudtrailv2/home?region=${r}#/dashboard`;
     case "lambda":
-      if (p.FunctionName) return `https://${r}.console.aws.amazon.com/lambda/home?region=${r}#/functions/${encodeURIComponent(p.FunctionName)}`;
-      return `https://${r}.console.aws.amazon.com/lambda/home?region=${r}#/functions`;
+      if (p.FunctionName) return `https://console.aws.amazon.com/lambda/home?region=${r}#/functions/${encodeURIComponent(p.FunctionName)}`;
+      return `https://console.aws.amazon.com/lambda/home?region=${r}#/functions`;
     case "secretsmanager":
-      return `https://${r}.console.aws.amazon.com/secretsmanager/listsecrets?region=${r}`;
+      return `https://console.aws.amazon.com/secretsmanager/listsecrets?region=${r}`;
+    case "guardduty":
+      return `https://console.aws.amazon.com/guardduty/home?region=${r}#/findings`;
   }
 }
 
