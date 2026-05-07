@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
+import { normalizeAwsConsoleUrl, openAwsConsoleUrl } from "@/lib/awsConsole";
 
 export type LifecycleState =
   | "proposed"
@@ -243,8 +244,9 @@ export function RemediationLifecycle({ remediation: r, currentUserId, requireSep
             </div>
             {(lastResult?.console_url || r.aws_console_url) && (
               <a
-                href={lastResult?.console_url || r.aws_console_url}
+                href={normalizeAwsConsoleUrl(lastResult?.console_url || r.aws_console_url)}
                 target="_blank" rel="noreferrer"
+                onClick={(e) => { e.preventDefault(); openAwsConsoleUrl(lastResult?.console_url || r.aws_console_url); }}
                 className="flex items-center gap-1 rounded border border-border bg-background/60 px-2 py-1 text-[10px] uppercase tracking-wider hover:border-primary hover:text-primary"
               >
                 View result in AWS <ExternalLink className="h-3 w-3" />
@@ -259,7 +261,7 @@ export function RemediationLifecycle({ remediation: r, currentUserId, requireSep
                   <span className="text-foreground/90">{res.api}</span>
                   <span className="text-muted-foreground">({res.status ?? "ERR"})</span>
                   {res.console_url && (
-                    <a href={res.console_url} target="_blank" rel="noreferrer" className="ml-auto flex items-center gap-1 text-muted-foreground hover:text-primary">
+                    <a href={normalizeAwsConsoleUrl(res.console_url)} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openAwsConsoleUrl(res.console_url); }} className="ml-auto flex items-center gap-1 text-muted-foreground hover:text-primary">
                       open <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
