@@ -580,7 +580,13 @@ Deno.serve(async (req) => {
       const failedResult = results.find((r) => !r.ok);
       const failedAction = failedResult?.action;
       const errorMsg = failedResult?.error || "Unknown error";
-      const awsResponse = failedResult?.response || "No response body";
+      const awsResponse = failedResult?.response ? prettyAwsResponse(failedResult.response) : "No response body returned by AWS or the runtime.";
+      outputLines.push(`── FAILURE DIAGNOSTICS ──`);
+      outputLines.push(`   Failed API: ${failedAction?.service}.${failedAction?.api}`);
+      outputLines.push(`   Official AWS error: ${errorMsg}`);
+      outputLines.push(`   Official AWS response:`);
+      for (const line of awsResponse.split("\n")) outputLines.push(`   ${line}`);
+      outputLines.push("");
 
       const system = `You are an expert AWS Remediation Engineer. The previous execution of a remediation script failed.
 Analyze the following failure details:
@@ -605,14 +611,16 @@ AWS Response: ${awsResponse}
 `;
 
       try {
-        const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+        const openAiKey = Deno.env.get("OPENAI_API_KEY");
+        const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+        const resp = await fetch(openAiKey ? "https://api.openai.com/v1/chat/completions" : "https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
+            "Authorization": `Bearer ${openAiKey || lovableKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "gpt-4o",
+            model: openAiKey ? "gpt-4o" : "google/gemini-2.5-flash",
             response_format: { type: "json_object" },
             messages: [
               { role: "system", content: system },
@@ -633,9 +641,14 @@ AWS Response: ${awsResponse}
             refinedSnippet = content.refined_snippet;
           }
         } else {
-          console.error("AI auto-refine failed", await resp.text());
+          const aiError = await resp.text();
+          outputLines.push(`── AI FAILURE ANALYSIS & REFINEMENT ──`);
+          outputLines.push(`   AI analysis could not be generated: ${resp.status} ${aiError.slice(0, 500)}`);
+          console.error("AI auto-refine failed", aiError);
         }
       } catch (err) {
+        outputLines.push(`── AI FAILURE ANALYSIS & REFINEMENT ──`);
+        outputLines.push(`   AI analysis could not be generated: ${err instanceof Error ? err.message : String(err)}`);
         console.error("AI auto-refine error", err);
       }
     }
