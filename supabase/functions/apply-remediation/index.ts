@@ -287,10 +287,24 @@ async function execAction(a: Action, defaultRegion: string, creds: Creds): Promi
         });
         break;
       }
+
+      // ---------- GuardDuty (REST JSON) ----------
+      case "guardduty": {
+        const detectorId = a.params?.DetectorId || a.params?.detectorId;
+        if (a.api !== "CreateDetector" && !detectorId) throw new Error("GuardDuty action requires DetectorId param");
+        const gdParams = { ...(a.params || {}) };
+        delete gdParams.DetectorId;
+        delete gdParams.detectorId;
+        const body = JSON.stringify(gdParams);
+        const path = a.api === "CreateDetector" ? "/detector" : `/detector/${encodeURIComponent(detectorId)}`;
+        const method = a.api === "CreateDetector" ? "POST" : a.api === "GetDetector" ? "GET" : "POST";
+        resp = await awsRequest({ service: "guardduty", region, method, path, body: method === "GET" ? "" : body, headers: { "content-type": "application/json" }, creds });
+        break;
+      }
     }
 
-    const text = await resp!.text();
-    return { action: a, ok: resp!.ok, status: resp!.status, response: text.slice(0, 8000) };
+    const text = await resp!.text().catch((err) => `Could not read AWS response body: ${err?.message ?? String(err)}`);
+    return { action: a, ok: resp!.ok, status: resp!.status, response: text.slice(0, 8000), error: resp!.ok ? undefined : prettyAwsResponse(text).slice(0, 1500) };
   } catch (e: any) {
     return { action: a, ok: false, error: e?.message ?? String(e) };
   }
