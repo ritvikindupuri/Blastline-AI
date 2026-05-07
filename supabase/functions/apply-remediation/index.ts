@@ -81,7 +81,7 @@ async function awsRequest(opts: {
 type Action = {
   id: string;
   description: string;
-  service: "s3" | "iam" | "ec2" | "rds" | "kms" | "logs" | "cloudtrail" | "lambda" | "secretsmanager";
+  service: "s3" | "iam" | "ec2" | "rds" | "kms" | "logs" | "cloudtrail" | "lambda" | "secretsmanager" | "guardduty";
   api: string; // e.g. PutBucketPublicAccessBlock
   region?: string;
   params: Record<string, any>;
@@ -126,31 +126,33 @@ function consoleUrlFor(action: Action, region: string): string {
   const p = action.params || {};
   switch (action.service) {
     case "iam":
-      if (p.UserName) return `https://us-east-1.console.aws.amazon.com/iam/home#/users/details/${encodeURIComponent(p.UserName)}`;
-      if (p.RoleName) return `https://us-east-1.console.aws.amazon.com/iam/home#/roles/details/${encodeURIComponent(p.RoleName)}`;
-      if (action.api.includes("PasswordPolicy")) return "https://us-east-1.console.aws.amazon.com/iam/home#/account_settings";
-      return "https://us-east-1.console.aws.amazon.com/iam/home#/home";
+      if (p.UserName) return `https://console.aws.amazon.com/iam/home#/users/details/${encodeURIComponent(p.UserName)}`;
+      if (p.RoleName) return `https://console.aws.amazon.com/iam/home#/roles/details/${encodeURIComponent(p.RoleName)}`;
+      if (action.api.includes("PasswordPolicy")) return "https://console.aws.amazon.com/iam/home#/account_settings";
+      return "https://console.aws.amazon.com/iam/home#/home";
     case "s3":
       if (p.Bucket) return `https://s3.console.aws.amazon.com/s3/buckets/${encodeURIComponent(p.Bucket)}?region=${r}&tab=permissions`;
       return "https://s3.console.aws.amazon.com/s3/home";
     case "ec2":
-      if (p.GroupId) return `https://${r}.console.aws.amazon.com/ec2/home?region=${r}#SecurityGroup:groupId=${p.GroupId}`;
-      return `https://${r}.console.aws.amazon.com/ec2/home?region=${r}`;
+      if (p.GroupId) return `https://console.aws.amazon.com/ec2/home?region=${r}#SecurityGroup:groupId=${p.GroupId}`;
+      return `https://console.aws.amazon.com/ec2/home?region=${r}`;
     case "rds":
-      if (p.DBInstanceIdentifier) return `https://${r}.console.aws.amazon.com/rds/home?region=${r}#database:id=${p.DBInstanceIdentifier};is-cluster=false`;
-      return `https://${r}.console.aws.amazon.com/rds/home?region=${r}#databases:`;
+      if (p.DBInstanceIdentifier) return `https://console.aws.amazon.com/rds/home?region=${r}#database:id=${p.DBInstanceIdentifier};is-cluster=false`;
+      return `https://console.aws.amazon.com/rds/home?region=${r}#databases:`;
     case "kms":
-      if (p.KeyId) return `https://${r}.console.aws.amazon.com/kms/home?region=${r}#/kms/keys/${p.KeyId}`;
-      return `https://${r}.console.aws.amazon.com/kms/home?region=${r}`;
+      if (p.KeyId) return `https://console.aws.amazon.com/kms/home?region=${r}#/kms/keys/${p.KeyId}`;
+      return `https://console.aws.amazon.com/kms/home?region=${r}`;
     case "logs":
-      return `https://${r}.console.aws.amazon.com/cloudwatch/home?region=${r}#logsV2:log-groups`;
+      return `https://console.aws.amazon.com/cloudwatch/home?region=${r}#logsV2:log-groups`;
     case "cloudtrail":
-      return `https://${r}.console.aws.amazon.com/cloudtrailv2/home?region=${r}#/dashboard`;
+      return `https://console.aws.amazon.com/cloudtrailv2/home?region=${r}#/dashboard`;
     case "lambda":
-      if (p.FunctionName) return `https://${r}.console.aws.amazon.com/lambda/home?region=${r}#/functions/${encodeURIComponent(p.FunctionName)}`;
-      return `https://${r}.console.aws.amazon.com/lambda/home?region=${r}#/functions`;
+      if (p.FunctionName) return `https://console.aws.amazon.com/lambda/home?region=${r}#/functions/${encodeURIComponent(p.FunctionName)}`;
+      return `https://console.aws.amazon.com/lambda/home?region=${r}#/functions`;
     case "secretsmanager":
-      return `https://${r}.console.aws.amazon.com/secretsmanager/listsecrets?region=${r}`;
+      return `https://console.aws.amazon.com/secretsmanager/listsecrets?region=${r}`;
+    case "guardduty":
+      return `https://console.aws.amazon.com/guardduty/home?region=${r}#/findings`;
   }
 }
 
@@ -285,10 +287,24 @@ async function execAction(a: Action, defaultRegion: string, creds: Creds): Promi
         });
         break;
       }
+
+      // ---------- GuardDuty (REST JSON) ----------
+      case "guardduty": {
+        const detectorId = a.params?.DetectorId || a.params?.detectorId;
+        if (a.api !== "CreateDetector" && !detectorId) throw new Error("GuardDuty action requires DetectorId param");
+        const gdParams = { ...(a.params || {}) };
+        delete gdParams.DetectorId;
+        delete gdParams.detectorId;
+        const body = JSON.stringify(gdParams);
+        const path = a.api === "CreateDetector" ? "/detector" : `/detector/${encodeURIComponent(detectorId)}`;
+        const method = a.api === "CreateDetector" ? "POST" : a.api === "GetDetector" ? "GET" : "POST";
+        resp = await awsRequest({ service: "guardduty", region, method, path, body: method === "GET" ? "" : body, headers: { "content-type": "application/json" }, creds });
+        break;
+      }
     }
 
-    const text = await resp!.text();
-    return { action: a, ok: resp!.ok, status: resp!.status, response: text.slice(0, 8000) };
+    const text = await resp!.text().catch((err) => `Could not read AWS response body: ${err?.message ?? String(err)}`);
+    return { action: a, ok: resp!.ok, status: resp!.status, response: text.slice(0, 8000), error: resp!.ok ? undefined : prettyAwsResponse(text).slice(0, 1500) };
   } catch (e: any) {
     return { action: a, ok: false, error: e?.message ?? String(e) };
   }
@@ -301,14 +317,15 @@ async function planActions(snippet: string, finding: any): Promise<{ actions: Ac
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-  const system = `You are an AWS remediation planner. Convert a Terraform/CloudFormation/CLI snippet (or a natural-language fix) into a JSON plan of concrete AWS API calls that, when executed, will apply the security fix.
+    const system = `You are an AWS remediation planner. Convert a Terraform/CloudFormation/CLI snippet (or a natural-language fix) into a JSON plan of concrete AWS API calls that, when executed, will apply the security fix.
 
-Return STRICT JSON: {"actions":[{"id":"a1","description":"...","service":"iam|s3|ec2|rds|kms|logs|cloudtrail|lambda|secretsmanager","api":"<AWS API name>","region":"us-east-1","params":{...}}]}
+Return STRICT JSON: {"actions":[{"id":"a1","description":"...","service":"iam|s3|ec2|rds|kms|logs|cloudtrail|lambda|secretsmanager|guardduty","api":"<AWS API name>","region":"us-east-1","params":{...}}]}
 
 Rules:
-- Use ONLY these services: iam, s3, ec2, rds, kms, logs, cloudtrail, lambda, secretsmanager.
-- Use exact AWS API names: UpdateAccountPasswordPolicy, PutBucketPublicAccessBlock, PutBucketEncryption, PutBucketVersioning, RevokeSecurityGroupIngress, AuthorizeSecurityGroupIngress, ModifyDBInstance, EnableKeyRotation, PutRetentionPolicy, UpdateTrail, StartLogging, etc.
+- Use ONLY these services: iam, s3, ec2, rds, kms, logs, cloudtrail, lambda, secretsmanager, guardduty.
+- Use exact AWS API names: UpdateAccountPasswordPolicy, PutBucketPublicAccessBlock, PutBucketEncryption, PutBucketVersioning, RevokeSecurityGroupIngress, AuthorizeSecurityGroupIngress, ModifyDBInstance, EnableKeyRotation, PutRetentionPolicy, UpdateTrail, StartLogging, UpdateDetector, CreateDetector, etc.
 - Params must use AWS API param names exactly (PascalCase as in AWS docs).
+- For GuardDuty existing detectors, use UpdateDetector with params like {"DetectorId":"...","Enable":true,"FindingPublishingFrequency":"SIX_HOURS","DataSources":{"S3Logs":{"Enable":true}}}; for no detector, use CreateDetector.
 - For IAM password policy, use UpdateAccountPasswordPolicy with full required fields.
 - Prefer the smallest set of idempotent calls (1-3 actions).
 - Do NOT create destructive calls (DeleteUser, DeleteBucket, TerminateInstances) unless the snippet explicitly removes a resource.
@@ -563,7 +580,13 @@ Deno.serve(async (req) => {
       const failedResult = results.find((r) => !r.ok);
       const failedAction = failedResult?.action;
       const errorMsg = failedResult?.error || "Unknown error";
-      const awsResponse = failedResult?.response || "No response body";
+      const awsResponse = failedResult?.response ? prettyAwsResponse(failedResult.response) : "No response body returned by AWS or the runtime.";
+      outputLines.push(`── FAILURE DIAGNOSTICS ──`);
+      outputLines.push(`   Failed API: ${failedAction?.service}.${failedAction?.api}`);
+      outputLines.push(`   Official AWS error: ${errorMsg}`);
+      outputLines.push(`   Official AWS response:`);
+      for (const line of awsResponse.split("\n")) outputLines.push(`   ${line}`);
+      outputLines.push("");
 
       const system = `You are an expert AWS Remediation Engineer. The previous execution of a remediation script failed.
 Analyze the following failure details:
@@ -588,14 +611,16 @@ AWS Response: ${awsResponse}
 `;
 
       try {
-        const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+        const openAiKey = Deno.env.get("OPENAI_API_KEY");
+        const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+        const resp = await fetch(openAiKey ? "https://api.openai.com/v1/chat/completions" : "https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
+            "Authorization": `Bearer ${openAiKey || lovableKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "gpt-4o",
+            model: openAiKey ? "gpt-4o" : "google/gemini-2.5-flash",
             response_format: { type: "json_object" },
             messages: [
               { role: "system", content: system },
@@ -616,9 +641,14 @@ AWS Response: ${awsResponse}
             refinedSnippet = content.refined_snippet;
           }
         } else {
-          console.error("AI auto-refine failed", await resp.text());
+          const aiError = await resp.text();
+          outputLines.push(`── AI FAILURE ANALYSIS & REFINEMENT ──`);
+          outputLines.push(`   AI analysis could not be generated: ${resp.status} ${aiError.slice(0, 500)}`);
+          console.error("AI auto-refine failed", aiError);
         }
       } catch (err) {
+        outputLines.push(`── AI FAILURE ANALYSIS & REFINEMENT ──`);
+        outputLines.push(`   AI analysis could not be generated: ${err instanceof Error ? err.message : String(err)}`);
         console.error("AI auto-refine error", err);
       }
     }

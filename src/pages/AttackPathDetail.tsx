@@ -9,6 +9,7 @@ import { ExternalLink, GitBranch, ShieldCheck, Terminal, Globe, KeyRound, Databa
 import "reactflow/dist/style.css";
 import { RemediationLifecycle } from "@/components/RemediationLifecycle";
 import dagre from "dagre";
+import { normalizeAwsConsoleUrl, openAwsConsoleUrl } from "@/lib/awsConsole";
 
 type GraphNodeData = {
   label: string;
@@ -49,7 +50,7 @@ function pickIcon(kind?: string): LucideIcon {
 }
 
 const awsConsoleFor = (finding?: any, remediation?: any) => {
-  if (remediation?.aws_console_url) return remediation.aws_console_url;
+  if (remediation?.aws_console_url) return normalizeAwsConsoleUrl(remediation.aws_console_url);
   const region = finding?.region || "us-east-1";
   const service = String(finding?.service || "").toLowerCase();
   const arn: string = finding?.resource_arn || "";
@@ -67,14 +68,14 @@ const awsConsoleFor = (finding?: any, remediation?: any) => {
     return `https://s3.console.aws.amazon.com/s3/buckets/${encodeURIComponent(bucket)}?region=${region}`;
   }
   if (service === "s3") return "https://s3.console.aws.amazon.com/s3/home";
-  if (service === "ec2") return `https://${region}.console.aws.amazon.com/ec2/home?region=${region}#Home:`;
-  if (service === "rds") return `https://${region}.console.aws.amazon.com/rds/home?region=${region}#databases:`;
-  if (service === "lambda") return `https://${region}.console.aws.amazon.com/lambda/home?region=${region}#/functions`;
-  if (service === "cloudtrail") return `https://${region}.console.aws.amazon.com/cloudtrailv2/home?region=${region}#/dashboard`;
-  if (service === "guardduty") return `https://${region}.console.aws.amazon.com/guardduty/home?region=${region}#/findings`;
-  if (service === "kms") return `https://${region}.console.aws.amazon.com/kms/home?region=${region}#/kms/keys`;
-  if (service === "secretsmanager") return `https://${region}.console.aws.amazon.com/secretsmanager/listsecrets?region=${region}`;
-  return `https://${region}.console.aws.amazon.com/console/home?region=${region}`;
+  if (service === "ec2") return `https://console.aws.amazon.com/ec2/home?region=${region}#Home:`;
+  if (service === "rds") return `https://console.aws.amazon.com/rds/home?region=${region}#databases:`;
+  if (service === "lambda") return `https://console.aws.amazon.com/lambda/home?region=${region}#/functions`;
+  if (service === "cloudtrail") return `https://console.aws.amazon.com/cloudtrailv2/home?region=${region}#/dashboard`;
+  if (service === "guardduty") return `https://console.aws.amazon.com/guardduty/home?region=${region}#/findings`;
+  if (service === "kms") return `https://console.aws.amazon.com/kms/home?region=${region}#/kms/keys`;
+  if (service === "secretsmanager") return `https://console.aws.amazon.com/secretsmanager/listsecrets?region=${region}`;
+  return `https://console.aws.amazon.com/console/home?region=${region}`;
 };
 
 function AttackNode({ data, selected }: NodeProps<GraphNodeData>) {
@@ -455,7 +456,7 @@ export default function AttackPathDetail() {
                         </div>
                       </div>
                       <Button asChild size="sm" variant="outline" className="gap-2 border-border bg-transparent hover:bg-secondary">
-                        <a href={awsConsoleFor(finding, r)} target="_blank" rel="noreferrer">Review in AWS <ExternalLink className="h-3.5 w-3.5" /></a>
+                        <a href={awsConsoleFor(finding, r)} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openAwsConsoleUrl(awsConsoleFor(finding, r)); }}>Review in AWS <ExternalLink className="h-3.5 w-3.5" /></a>
                       </Button>
                     </div>
                     <div className="mt-4 grid gap-3 lg:grid-cols-2">

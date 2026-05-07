@@ -5,9 +5,10 @@ import { AppShell } from "@/components/layout/AppShell";
 import { AGENT_META, FALLBACK_AGENT, SEV_RING, type Severity } from "@/lib/severity";
 import { Loader2, CheckCircle2, XCircle, Network as NetIcon, ExternalLink, Terminal, ChevronRight, FileDown, FileSpreadsheet, PlayCircle, ShieldCheck, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { normalizeAwsConsoleUrl, openAwsConsoleUrl } from "@/lib/awsConsole";
 
 function awsConsoleFor(finding?: any, remediation?: any) {
-  if (remediation?.aws_console_url) return remediation.aws_console_url;
+  if (remediation?.aws_console_url) return normalizeAwsConsoleUrl(remediation.aws_console_url);
   const region = finding?.region || "us-east-1";
   const service = String(finding?.service || "").toLowerCase();
   const arn: string = finding?.resource_arn || "";
@@ -23,13 +24,13 @@ function awsConsoleFor(finding?: any, remediation?: any) {
     return `https://s3.console.aws.amazon.com/s3/buckets/${encodeURIComponent(bucket)}?region=${region}&tab=permissions`;
   }
   if (service === "s3") return "https://s3.console.aws.amazon.com/s3/home";
-  if (service === "ec2") return `https://${region}.console.aws.amazon.com/ec2/home?region=${region}`;
-  if (service === "rds") return `https://${region}.console.aws.amazon.com/rds/home?region=${region}#databases:`;
-  if (service === "lambda") return `https://${region}.console.aws.amazon.com/lambda/home?region=${region}#/functions`;
-  if (service === "cloudtrail") return `https://${region}.console.aws.amazon.com/cloudtrailv2/home?region=${region}#/dashboard`;
-  if (service === "guardduty") return `https://${region}.console.aws.amazon.com/guardduty/home?region=${region}#/findings`;
-  if (service === "kms") return `https://${region}.console.aws.amazon.com/kms/home?region=${region}#/kms/keys`;
-  return `https://${region}.console.aws.amazon.com/console/home?region=${region}`;
+  if (service === "ec2") return `https://console.aws.amazon.com/ec2/home?region=${region}`;
+  if (service === "rds") return `https://console.aws.amazon.com/rds/home?region=${region}#databases:`;
+  if (service === "lambda") return `https://console.aws.amazon.com/lambda/home?region=${region}#/functions`;
+  if (service === "cloudtrail") return `https://console.aws.amazon.com/cloudtrailv2/home?region=${region}#/dashboard`;
+  if (service === "guardduty") return `https://console.aws.amazon.com/guardduty/home?region=${region}#/findings`;
+  if (service === "kms") return `https://console.aws.amazon.com/kms/home?region=${region}#/kms/keys`;
+  return `https://console.aws.amazon.com/console/home?region=${region}`;
 }
 
 export default function AuditDetail() {
@@ -306,7 +307,7 @@ export default function AuditDetail() {
                         </span>
                       )}
                       <Button asChild size="sm" variant="outline" className="gap-2 border-border bg-transparent hover:bg-secondary">
-                        <a href={awsUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                        <a href={awsUrl} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); e.stopPropagation(); openAwsConsoleUrl(awsUrl); }}>
                           {isApplied ? "View result in AWS" : "Review in AWS"} <ExternalLink className="h-3.5 w-3.5" />
                         </a>
                       </Button>
