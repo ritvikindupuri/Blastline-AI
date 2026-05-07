@@ -317,14 +317,15 @@ async function planActions(snippet: string, finding: any): Promise<{ actions: Ac
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-  const system = `You are an AWS remediation planner. Convert a Terraform/CloudFormation/CLI snippet (or a natural-language fix) into a JSON plan of concrete AWS API calls that, when executed, will apply the security fix.
+    const system = `You are an AWS remediation planner. Convert a Terraform/CloudFormation/CLI snippet (or a natural-language fix) into a JSON plan of concrete AWS API calls that, when executed, will apply the security fix.
 
-Return STRICT JSON: {"actions":[{"id":"a1","description":"...","service":"iam|s3|ec2|rds|kms|logs|cloudtrail|lambda|secretsmanager","api":"<AWS API name>","region":"us-east-1","params":{...}}]}
+Return STRICT JSON: {"actions":[{"id":"a1","description":"...","service":"iam|s3|ec2|rds|kms|logs|cloudtrail|lambda|secretsmanager|guardduty","api":"<AWS API name>","region":"us-east-1","params":{...}}]}
 
 Rules:
-- Use ONLY these services: iam, s3, ec2, rds, kms, logs, cloudtrail, lambda, secretsmanager.
-- Use exact AWS API names: UpdateAccountPasswordPolicy, PutBucketPublicAccessBlock, PutBucketEncryption, PutBucketVersioning, RevokeSecurityGroupIngress, AuthorizeSecurityGroupIngress, ModifyDBInstance, EnableKeyRotation, PutRetentionPolicy, UpdateTrail, StartLogging, etc.
+- Use ONLY these services: iam, s3, ec2, rds, kms, logs, cloudtrail, lambda, secretsmanager, guardduty.
+- Use exact AWS API names: UpdateAccountPasswordPolicy, PutBucketPublicAccessBlock, PutBucketEncryption, PutBucketVersioning, RevokeSecurityGroupIngress, AuthorizeSecurityGroupIngress, ModifyDBInstance, EnableKeyRotation, PutRetentionPolicy, UpdateTrail, StartLogging, UpdateDetector, CreateDetector, etc.
 - Params must use AWS API param names exactly (PascalCase as in AWS docs).
+- For GuardDuty existing detectors, use UpdateDetector with params like {"DetectorId":"...","Enable":true,"FindingPublishingFrequency":"SIX_HOURS","DataSources":{"S3Logs":{"Enable":true}}}; for no detector, use CreateDetector.
 - For IAM password policy, use UpdateAccountPasswordPolicy with full required fields.
 - Prefer the smallest set of idempotent calls (1-3 actions).
 - Do NOT create destructive calls (DeleteUser, DeleteBucket, TerminateInstances) unless the snippet explicitly removes a resource.
