@@ -573,9 +573,14 @@ Deno.serve(async (req) => {
       outputLines.push("");
     }
 
-    let refinedSnippet = snippet;
+    let proposedSnippet: string | null = null;
+    let aiExplanation: string | null = null;
+    let aiAnalysisError: string | null = null;
 
-    // AI AUTO-REFINE: If it failed, ask AI to explain and suggest a new snippet
+    // AI AUTO-REFINE: If it failed, ask AI to explain and suggest a new snippet.
+    // The execution_output log stays as the OFFICIAL AWS console output only.
+    // The AI analysis + proposed refined snippet are surfaced separately to the UI
+    // (popup) so the user can review and explicitly approve the new snippet.
     if (!allOk) {
       const failedResult = results.find((r) => !r.ok);
       const failedAction = failedResult?.action;
@@ -633,22 +638,16 @@ AWS Response: ${awsResponse}
           const body = await resp.json();
           const content = JSON.parse(body.choices[0].message.content);
           if (content.explanation && content.refined_snippet) {
-            outputLines.push(`── AI FAILURE ANALYSIS & REFINEMENT ──`);
-            outputLines.push(`   Explanation: ${content.explanation}`);
-            outputLines.push(`   The script snippet has been automatically updated with the proposed fix.`);
-            outputLines.push(`   Please review the new script and click 'Apply' again.`);
-
-            refinedSnippet = content.refined_snippet;
+            aiExplanation = String(content.explanation);
+            proposedSnippet = String(content.refined_snippet);
           }
         } else {
           const aiError = await resp.text();
-          outputLines.push(`── AI FAILURE ANALYSIS & REFINEMENT ──`);
-          outputLines.push(`   AI analysis could not be generated: ${resp.status} ${aiError.slice(0, 500)}`);
+          aiAnalysisError = `AI analysis could not be generated: ${resp.status} ${aiError.slice(0, 500)}`;
           console.error("AI auto-refine failed", aiError);
         }
       } catch (err) {
-        outputLines.push(`── AI FAILURE ANALYSIS & REFINEMENT ──`);
-        outputLines.push(`   AI analysis could not be generated: ${err instanceof Error ? err.message : String(err)}`);
+        aiAnalysisError = `AI analysis could not be generated: ${err instanceof Error ? err.message : String(err)}`;
         console.error("AI auto-refine error", err);
       }
     }
@@ -660,16 +659,26 @@ AWS Response: ${awsResponse}
       lifecycle_state: lifecycle,
       execution_status: exec_status,
       execution_output: outputLines.join("\n"),
-      executed_script: refinedSnippet,
-      snippet: refinedSnippet, // Ensure the UI sees the new snippet for editing
       executed_by: user.id,
       executed_at: new Date().toISOString(),
       applied: allOk,
       aws_console_url: primaryConsoleUrl,
-      aws_changes: { actions, results: results.map((r) => ({
-        api: `${r.action.service}.${r.action.api}`, ok: r.ok, status: r.status, console_url: r.action.console_url,
-        error: r.error, response_preview: r.response?.slice(0, 400),
-      })) },
+      aws_changes: {
+        actions,
+        results: results.map((r) => ({
+          api: `${r.action.service}.${r.action.api}`, ok: r.ok, status: r.status, console_url: r.action.console_url,
+          error: r.error, response_preview: r.response?.slice(0, 400),
+        })),
+        ai_failure_analysis: !allOk ? {
+          explanation: aiExplanation,
+          proposed_snippet: proposedSnippet,
+          original_snippet: snippet,
+          analysis_error: aiAnalysisError,
+          failed_action: results.find(r => !r.ok)?.action ? `${results.find(r => !r.ok)!.action.service}.${results.find(r => !r.ok)!.action.api}` : null,
+          aws_error: results.find(r => !r.ok)?.error ?? null,
+          generated_at: new Date().toISOString(),
+        } : null,
+      },
     };
 
     await admin.from("remediations").update(update).eq("id", remediation_id);
