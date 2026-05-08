@@ -56,7 +56,6 @@ export default function Landing() {
         </div>
 
         <motion.div className="max-w-3xl relative" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: "easeOut" }}>
-          <div className="text-xs font-mono text-primary uppercase tracking-[0.24em] mb-6">Pre-merge reasoning · AWS</div>
           <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-semibold leading-[1.04] tracking-tight">
             Know what your IAM change breaks<br />
             <span className="text-primary">before</span> the PR merges.
