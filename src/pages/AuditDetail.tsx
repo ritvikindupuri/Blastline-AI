@@ -3,35 +3,9 @@ import { Link, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/layout/AppShell";
 import { AGENT_META, FALLBACK_AGENT, SEV_RING, type Severity } from "@/lib/severity";
-import { Loader2, CheckCircle2, XCircle, Network as NetIcon, ExternalLink, Terminal, ChevronRight, FileDown, FileSpreadsheet, PlayCircle, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Network as NetIcon, Terminal, ChevronRight, FileDown, FileSpreadsheet, PlayCircle, ShieldCheck, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { normalizeAwsConsoleUrl, openAwsConsoleUrl } from "@/lib/awsConsole";
-
-function awsConsoleFor(finding?: any, remediation?: any) {
-  if (remediation?.aws_console_url) return normalizeAwsConsoleUrl(remediation.aws_console_url);
-  const region = finding?.region || "us-east-1";
-  const service = String(finding?.service || "").toLowerCase();
-  const arn: string = finding?.resource_arn || "";
-  if (service === "iam" && arn) {
-    if (arn.includes(":user/")) return `https://console.aws.amazon.com/iam/home#/users/details/${encodeURIComponent(arn.split(":user/")[1])}`;
-    if (arn.includes(":role/")) return `https://console.aws.amazon.com/iam/home#/roles/details/${encodeURIComponent(arn.split(":role/")[1])}`;
-    if (arn.includes("password-policy")) return `https://console.aws.amazon.com/iam/home#/account_settings`;
-    return "https://console.aws.amazon.com/iam/home#/home";
-  }
-  if (service === "iam") return "https://console.aws.amazon.com/iam/home#/home";
-  if (service === "s3" && arn.startsWith("arn:aws:s3:::")) {
-    const bucket = arn.replace("arn:aws:s3:::", "").split("/")[0];
-    return `https://s3.console.aws.amazon.com/s3/buckets/${encodeURIComponent(bucket)}?region=${region}&tab=permissions`;
-  }
-  if (service === "s3") return "https://s3.console.aws.amazon.com/s3/home";
-  if (service === "ec2") return `https://console.aws.amazon.com/ec2/home?region=${region}`;
-  if (service === "rds") return `https://console.aws.amazon.com/rds/home?region=${region}#databases:`;
-  if (service === "lambda") return `https://console.aws.amazon.com/lambda/home?region=${region}#/functions`;
-  if (service === "cloudtrail") return `https://console.aws.amazon.com/cloudtrailv2/home?region=${region}#/dashboard`;
-  if (service === "guardduty") return `https://console.aws.amazon.com/guardduty/home?region=${region}#/findings`;
-  if (service === "kms") return `https://console.aws.amazon.com/kms/home?region=${region}#/kms/keys`;
-  return `https://console.aws.amazon.com/console/home?region=${region}`;
-}
+import { RemediationFailureSheet } from "@/components/RemediationFailureSheet";
 
 export default function AuditDetail() {
   const { id } = useParams();
@@ -267,8 +241,6 @@ export default function AuditDetail() {
           <div className="grid xl:grid-cols-2 gap-3">
             {remediations.length === 0 && <div className="text-sm text-muted-foreground">No remediation scripts generated yet.</div>}
             {remediations.map((r) => {
-              const finding = findings.find((f) => f.id === r.finding_id);
-              const awsUrl = awsConsoleFor(finding, r);
               const status = r.execution_status ?? "not_applied";
               const isApplied = status === "applied" || r.lifecycle_state === "executed" || r.lifecycle_state === "verified";
               const isFailed = status === "failed";
@@ -306,11 +278,9 @@ export default function AuditDetail() {
                           <CheckCircle2 className="h-3.5 w-3.5" /> Proven fixed
                         </span>
                       )}
-                      <Button asChild size="sm" variant="outline" className="gap-2 border-border bg-transparent hover:bg-secondary">
-                        <a href={awsUrl} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); e.stopPropagation(); openAwsConsoleUrl(awsUrl); }}>
-                          {isApplied ? "View result in AWS" : "Review in AWS"} <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      </Button>
+                      {isFailed && (
+                        <RemediationFailureSheet remediation={r} onApproved={reload} />
+                      )}
                     </div>
                   </div>
                   <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background/70 p-3 text-xs font-mono leading-relaxed">{r.executed_script || r.snippet}</pre>

@@ -13,12 +13,11 @@ import {
   Lock,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
   Loader2,
   AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
-import { normalizeAwsConsoleUrl, openAwsConsoleUrl } from "@/lib/awsConsole";
+import { RemediationFailureSheet } from "@/components/RemediationFailureSheet";
 
 export type LifecycleState =
   | "proposed"
@@ -233,6 +232,12 @@ export function RemediationLifecycle({ remediation: r, currentUserId, requireSep
         </div>
       )}
 
+      {r.execution_status === "failed" && (
+        <div className="mx-3 mb-3">
+          <RemediationFailureSheet remediation={r} onApproved={onChange} />
+        </div>
+      )}
+
       {(lastResult || r.aws_console_url) && (r.lifecycle_state === "executed" || r.lifecycle_state === "verified") && (
         <div className="mx-3 mb-3 rounded-md border border-success/40 bg-success/5 p-3 text-xs font-mono">
           <div className="flex items-center justify-between gap-2 mb-2">
@@ -242,16 +247,6 @@ export function RemediationLifecycle({ remediation: r, currentUserId, requireSep
                 {r.lifecycle_state === "verified" || lastResult?.verification?.verified ? "Proven fixed in AWS" : "Applied to AWS"}
               </span>
             </div>
-            {(lastResult?.console_url || r.aws_console_url) && (
-              <a
-                href={normalizeAwsConsoleUrl(lastResult?.console_url || r.aws_console_url)}
-                target="_blank" rel="noreferrer"
-                onClick={(e) => { e.preventDefault(); openAwsConsoleUrl(lastResult?.console_url || r.aws_console_url); }}
-                className="flex items-center gap-1 rounded border border-border bg-background/60 px-2 py-1 text-[10px] uppercase tracking-wider hover:border-primary hover:text-primary"
-              >
-                View result in AWS <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
           </div>
           {Array.isArray(lastResult?.results) && lastResult.results.length > 0 && (
             <ul className="space-y-1">
@@ -260,11 +255,6 @@ export function RemediationLifecycle({ remediation: r, currentUserId, requireSep
                   <span className={res.ok ? "text-success" : "text-sev-critical"}>{res.ok ? "✓" : "✗"}</span>
                   <span className="text-foreground/90">{res.api}</span>
                   <span className="text-muted-foreground">({res.status ?? "ERR"})</span>
-                  {res.console_url && (
-                    <a href={normalizeAwsConsoleUrl(res.console_url)} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openAwsConsoleUrl(res.console_url); }} className="ml-auto flex items-center gap-1 text-muted-foreground hover:text-primary">
-                      open <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
                 </li>
               ))}
             </ul>
