@@ -426,9 +426,9 @@ export default function AttackPathDetail() {
                           )}
                         </div>
                       </div>
-                      <Button asChild size="sm" variant="outline" className="gap-2 border-border bg-transparent hover:bg-secondary">
-                        <a href={awsConsoleFor(finding, r)} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openAwsConsoleUrl(awsConsoleFor(finding, r)); }}>Review in AWS <ExternalLink className="h-3.5 w-3.5" /></a>
-                      </Button>
+                      {r.execution_status === "failed" && (
+                        <RemediationFailureSheet remediation={r} onApproved={reload} />
+                      )}
                     </div>
                     <div className="mt-4 grid gap-3 lg:grid-cols-2">
                       <div>
