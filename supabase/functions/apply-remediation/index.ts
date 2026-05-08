@@ -551,26 +551,14 @@ Deno.serve(async (req) => {
       consoleUrlFor(actions[0], region);
 
     const outputLines: string[] = [];
-    outputLines.push(`# Blastline remediation execution`);
-    outputLines.push(`# Time: ${new Date().toISOString()}`);
-    outputLines.push(`# Account: ${conn.aws_account_id || "(unknown)"} | Region: ${region}`);
-    outputLines.push(`# Actions: ${results.length} | Success: ${results.filter(r => r.ok).length}`);
-    outputLines.push("");
     for (const r of results) {
-      outputLines.push(`── ${r.action.service}.${r.action.api} ${r.ok ? "✓" : "✗"} (${r.status ?? "ERR"})`);
-      outputLines.push(`   ${r.action.description}`);
-      outputLines.push(`   params: ${JSON.stringify(r.action.params)}`);
-      if (r.action.console_url) outputLines.push(`   aws console: ${r.action.console_url}`);
-      if (r.error) outputLines.push(`   error: ${r.error}`);
-      if (r.response && r.response.trim()) {
-        outputLines.push(`   ── AWS response (HTTP ${r.status ?? "ERR"}) ──`);
-        const pretty = prettyAwsResponse(r.response);
-        for (const line of pretty.split("\n")) outputLines.push(`   ${line}`);
-      } else if (r.ok) {
-        outputLines.push(`   ── AWS response (HTTP ${r.status}) ──`);
-        outputLines.push(`   (empty body — AWS returned success with no payload)`);
+      if (r.error) {
+        outputLines.push(r.error);
       }
-      outputLines.push("");
+      if (r.response && r.response.trim()) {
+        const pretty = prettyAwsResponse(r.response);
+        outputLines.push(pretty);
+      }
     }
 
     let proposedSnippet: string | null = null;
@@ -586,12 +574,6 @@ Deno.serve(async (req) => {
       const failedAction = failedResult?.action;
       const errorMsg = failedResult?.error || "Unknown error";
       const awsResponse = failedResult?.response ? prettyAwsResponse(failedResult.response) : "No response body returned by AWS or the runtime.";
-      outputLines.push(`── FAILURE DIAGNOSTICS ──`);
-      outputLines.push(`   Failed API: ${failedAction?.service}.${failedAction?.api}`);
-      outputLines.push(`   Official AWS error: ${errorMsg}`);
-      outputLines.push(`   Official AWS response:`);
-      for (const line of awsResponse.split("\n")) outputLines.push(`   ${line}`);
-      outputLines.push("");
 
       const system = `You are an expert AWS Remediation Engineer. The previous execution of a remediation script failed.
 Analyze the following failure details:
