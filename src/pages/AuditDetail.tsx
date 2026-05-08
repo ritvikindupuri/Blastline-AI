@@ -241,7 +241,6 @@ export default function AuditDetail() {
           <div className="grid xl:grid-cols-2 gap-3">
             {remediations.length === 0 && <div className="text-sm text-muted-foreground">No remediation scripts generated yet.</div>}
             {remediations.map((r) => {
-              const finding = findings.find((f) => f.id === r.finding_id);
               const status = r.execution_status ?? "not_applied";
               const isApplied = status === "applied" || r.lifecycle_state === "executed" || r.lifecycle_state === "verified";
               const isFailed = status === "failed";
