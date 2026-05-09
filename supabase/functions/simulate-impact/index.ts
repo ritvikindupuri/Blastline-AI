@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     const user_id = userData.user.id;
 
     const body = await req.json();
-    const mode = body.mode as "blast_radius" | "effective_permissions";
+    const mode = body.mode as "blast_radius" | "effective_permissions" | "suggest_principals";
     const connection_id = body.connection_id as string | undefined;
     if (!mode) return new Response(JSON.stringify({ error: "mode required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
@@ -55,6 +55,14 @@ Deno.serve(async (req) => {
       const { data: p } = await admin.from("attack_paths").select("title,severity,narrative,graph").eq("audit_id", latest.id).limit(50);
       findings = f ?? [];
       paths = p ?? [];
+    }
+
+    if (mode === "suggest_principals") {
+      const system = `You are an AWS IAM principal recommender. Given audit findings and attack paths, return up to 8 distinct, real-looking IAM principals worth investigating with an effective-permissions explorer. Prefer principals that show up in evidence, attack-path graphs, or findings (roles, users, federated identities). For each, include an ARN if known, a short name, the principal type, and a one-line reason explaining why it is interesting from a blast-radius perspective.
+Strict JSON: {"candidates":[{"arn": string|null, "name": string, "type": "role"|"user"|"federated"|"service", "reason": string, "risk_hint": "low"|"medium"|"high"|"critical"}]}`;
+      const user = JSON.stringify({ audit_summary: latest?.summary ?? null, findings: findings.slice(0, 120), paths: paths.slice(0, 15) });
+      const result = await ai(system, user);
+      return new Response(JSON.stringify({ ok: true, mode, result }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (mode === "blast_radius") {
@@ -86,7 +94,7 @@ Given a principal (user/role) and the audit context (findings + attack paths), c
 - assumed roles via sts:AssumeRole chains (transitive, max depth 3)
 - resource-based policies that grant access to this principal
 - permission boundaries and SCPs that restrict it
-Output a reachability-style JSON. Be honest about uncertainty; if data is missing, say so.
+Output a reachability-style JSON. ALWAYS populate effective_actions with at least 5 best-effort entries inferred from the principal's name, service context, related findings, and common AWS role patterns — mark uncertain entries clearly in the "notes" field (e.g. "inferred from role name, not confirmed by policy document"). Never return an empty effective_actions array unless the principal genuinely has zero permissions. Be honest about uncertainty in the gaps array; each gap should be a short, standalone bullet (one issue per string, no run-on sentences).
 Strict JSON shape:
 {
   "principal": {"arn": string, "type": string},
