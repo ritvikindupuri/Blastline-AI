@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, KeyRound, Network, ShieldAlert, Search } from "lucide-react";
+import { AlertTriangle, KeyRound, Network, ShieldAlert, Search, Sparkles, Loader2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type Result = {
   principal: { arn: string; type: string };
@@ -18,6 +19,8 @@ type Result = {
   toxic_combinations: { name: string; reason: string; severity: "warn" | "high" | "critical" }[];
   gaps: string[];
 };
+
+type Candidate = { arn: string | null; name: string; type: string; reason: string; risk_hint: "low" | "medium" | "high" | "critical" };
 
 const RISK_COLOR: Record<string, string> = {
   critical: "border-critical text-critical bg-critical/10",
@@ -35,6 +38,10 @@ export default function EffectivePermissions() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     supabase.from("aws_connections").select("id,account_label,aws_account_id").order("created_at", { ascending: false }).then(({ data }) => {
@@ -55,6 +62,29 @@ export default function EffectivePermissions() {
     } catch (e: any) {
       setError(e?.message ?? String(e));
     } finally { setLoading(false); }
+  }
+
+  async function aiPick() {
+    setAiLoading(true); setAiError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("simulate-impact", {
+        body: { mode: "suggest_principals", connection_id: connectionId || undefined },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setCandidates(data?.result?.candidates ?? []);
+      setPickerOpen(true);
+    } catch (e: any) {
+      setAiError(e?.message ?? String(e));
+      setPickerOpen(true);
+    } finally { setAiLoading(false); }
+  }
+
+  function applyCandidate(c: Candidate) {
+    if (c.arn) setArn(c.arn); else setArn("");
+    setName(c.name ?? "");
+    if (c.type) setType(c.type);
+    setPickerOpen(false);
   }
 
   return (
@@ -83,6 +113,36 @@ export default function EffectivePermissions() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" size="sm" className="w-full" onClick={aiPick} disabled={aiLoading}>
+                    {aiLoading ? <><Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />Finding interesting principals…</> : <><Sparkles className="h-3.5 w-3.5 mr-2" />AI pick from latest audit</>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[420px] p-0 max-h-[60vh] overflow-auto">
+                  {aiError && <div className="p-3 text-xs text-destructive">{aiError}</div>}
+                  {!aiError && candidates && candidates.length === 0 && (
+                    <div className="p-3 text-xs text-muted-foreground">No principals could be inferred from the latest audit.</div>
+                  )}
+                  {!aiError && candidates && candidates.length > 0 && (
+                    <div className="divide-y divide-border">
+                      {candidates.map((c, i) => (
+                        <button key={i} type="button" onClick={() => applyCandidate(c)} className="w-full text-left p-3 hover:bg-secondary/40 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border ${RISK_COLOR[c.risk_hint] ?? ""}`}>{c.risk_hint}</span>
+                            <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{c.type}</span>
+                            <span className="font-mono text-xs ml-auto truncate">{c.name}</span>
+                          </div>
+                          {c.arn && <div className="mt-1 font-mono text-[10px] text-muted-foreground break-all">{c.arn}</div>}
+                          <div className="mt-1 text-xs text-foreground/80 leading-snug">{c.reason}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
+
               <div>
                 <Label className="text-xs">Type</Label>
                 <Select value={type} onValueChange={setType}>
@@ -130,7 +190,11 @@ export default function EffectivePermissions() {
                     <span className="text-xs font-mono text-muted-foreground">confidence {(result.confidence * 100).toFixed(0)}%</span>
                     {result.principal?.arn && <span className="text-xs font-mono text-muted-foreground break-all">· {result.principal.arn}</span>}
                   </div>
-                  <p className="mt-3 text-sm leading-relaxed">{result.summary}</p>
+                  <div className="mt-3 text-sm leading-relaxed space-y-2">
+                    {(result.summary ?? "").split(/\n+|(?<=\.)\s+(?=[A-Z])/).filter(Boolean).map((s, i) => (
+                      <p key={i}>{s.trim()}</p>
+                    ))}
+                  </div>
                 </div>
 
                 {result.toxic_combinations?.length > 0 && (
@@ -209,8 +273,16 @@ export default function EffectivePermissions() {
                 )}
 
                 {result.gaps?.length > 0 && (
-                  <div className="rounded-lg border border-border bg-card/40 p-4 text-xs text-muted-foreground">
-                    <span className="font-mono uppercase tracking-wider text-foreground/70">Coverage gaps:</span> {result.gaps.join(" · ")}
+                  <div className="rounded-lg border border-border bg-card/40 p-5 shadow-card">
+                    <div className="font-mono text-[10px] uppercase tracking-wider text-foreground/70 mb-3">Coverage gaps</div>
+                    <ul className="space-y-2">
+                      {result.gaps.map((g, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-medium" />
+                          <span>{g}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>
