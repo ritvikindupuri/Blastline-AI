@@ -2,6 +2,8 @@
 
 **Blastline** is a read-only, zero-exploit cloud security auditing and remediation platform engineered for modern AWS environments. It provides deep visibility into misconfigurations, IAM vulnerabilities, and attack vectors, ensuring compliance with CIS, NIST, SOC2, and PCI standards.
 
+🌟 **Live Demo:** Want to try it out? You can access the live application here: [https://sentinel-sentinel-guardian.lovable.app/](https://sentinel-sentinel-guardian.lovable.app/)
+
 For an exhaustive and deeply technical look at the platform, please refer to the [Technical Documentation](TECHNICAL_DOCUMENTATION.md).
 
 ---
@@ -21,17 +23,17 @@ For an exhaustive and deeply technical look at the platform, please refer to the
 
 ```mermaid
 graph TD
-    UI[Frontend Client (React/Vite)] -->|Auth & Database Queries| SupabaseDB[(Supabase PostgreSQL)]
-    UI -->|Triggers Pipeline| EdgeFunctions[Supabase Edge Functions]
+    UI["Frontend Client (React/Vite)"] -->|"Auth & Database Queries"| SupabaseDB[("Supabase PostgreSQL")]
+    UI -->|"Triggers Pipeline"| EdgeFunctions["Supabase Edge Functions"]
 
     subgraph Supabase Backend
-        EdgeFunctions -->|Audit/Verify/Analyze| AWSSDK[AWS SDK]
-        EdgeFunctions -->|Generate Code/Analyze Failures| AI[AI Gateway / LLMs]
-        EdgeFunctions -->|Read/Write State| SupabaseDB
+        EdgeFunctions -->|"Audit/Verify/Analyze"| AWSSDK["AWS SDK"]
+        EdgeFunctions -->|"Generate Code/Analyze Failures"| AI["AI Gateway / LLMs"]
+        EdgeFunctions -->|"Read/Write State"| SupabaseDB
     end
 
-    AWSSDK -->|Read-Only Queries / API Executions| AWSCloud((AWS Environment))
-    AI -.->|Returns Remediation Snippets| EdgeFunctions
+    AWSSDK -->|"Read-Only Queries / API Executions"| AWSCloud(("AWS Environment"))
+    AI -.->|"Returns Remediation Snippets"| EdgeFunctions
 ```
 <div align="center"><em>Figure 1: Blastline System Architecture Flow</em></div>
 
