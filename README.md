@@ -2,6 +2,8 @@
 
 **Blastline** is a read-only, zero-exploit cloud security auditing and remediation platform engineered for modern AWS environments. It provides deep visibility into misconfigurations, IAM vulnerabilities, and attack vectors, ensuring compliance with CIS, NIST, SOC2, and PCI standards.
 
+🌟 **Live Demo:** Want to try it out? You can access the live application here: [https://sentinel-sentinel-guardian.lovable.app/](https://sentinel-sentinel-guardian.lovable.app/)
+
 For an exhaustive and deeply technical look at the platform, please refer to the [Technical Documentation](TECHNICAL_DOCUMENTATION.md).
 
 ---
