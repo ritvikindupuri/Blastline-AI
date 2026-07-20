@@ -26,12 +26,13 @@ For an exhaustive and deeply technical look at the platform, please refer to the
 </p>
 <p align="center"><strong>Figure 1: Blastline System Architecture Flow</strong></p>
 
-### Brief Flow-by-Flow
-1. **User Request:** The operator uses the UI to trigger an audit or remediation.
-2. **Database:** The UI authenticates and reads connection parameters directly from the Supabase Postgres Database via RLS.
-3. **Execution Pipeline:** A Supabase Edge Function is invoked, which executes read-only API calls via the AWS SDK.
-4. **AI Generation:** The Edge Function queries an AI model to evaluate logic and generate remediation code.
-5. **Storage:** The data and strict execution logs are persisted back to the database.
+### Flow-by-Flow Explanation
+1. **Operator Request & UI Interface**: The operator uses the web dashboard to trigger security audits, inspect attack path graphs, review compliance posture metrics, and initiate remediations.
+2. **Database & Connection Staging**: The frontend authenticates via Supabase Auth and queries PostgreSQL under strict Row Level Security (RLS) policies to retrieve authorized connections and encrypted credentials.
+3. **Edge Functions Execution Pipeline**: Action requests invoke serverless Supabase Edge Functions (Deno/TypeScript) that assume configured Cross-Account IAM Roles or user access keys to execute read-only audits against target AWS APIs.
+4. **AI Synthesis & Remediation Engine**: Discovered vulnerabilities and attack vectors are evaluated by AI models (OpenAI / Gemini) to synthesize context-aware IaC remediation code (Terraform, AWS CLI).
+5. **Governed Human-in-the-Loop Lifecycle**: Remediations follow a mandatory 4-stage governed workflow (Review, Approve, Execute, Verify), preventing unauthorized or unvetted infrastructure changes.
+6. **Data Persistence & Audit Logging**: Audit findings, execution logs, attack paths, and raw AWS API payloads are saved back to Supabase PostgreSQL for historical compliance and audit tracking.
 
 *(For detailed architectural flow, see the [Technical Documentation](TECHNICAL_DOCUMENTATION.md))*
 
