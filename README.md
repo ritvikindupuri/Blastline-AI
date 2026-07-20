@@ -21,21 +21,10 @@ For an exhaustive and deeply technical look at the platform, please refer to the
 
 ## System Architecture
 
-```mermaid
-graph TD
-    UI["Frontend Client (React/Vite)"] -->|"Auth & Database Queries"| SupabaseDB[("Supabase PostgreSQL")]
-    UI -->|"Triggers Pipeline"| EdgeFunctions["Supabase Edge Functions"]
-
-    subgraph Supabase Backend
-        EdgeFunctions -->|"Audit/Verify/Analyze"| AWSSDK["AWS SDK"]
-        EdgeFunctions -->|"Generate Code/Analyze Failures"| AI["AI Gateway / LLMs"]
-        EdgeFunctions -->|"Read/Write State"| SupabaseDB
-    end
-
-    AWSSDK -->|"Read-Only Queries / API Executions"| AWSCloud(("AWS Environment"))
-    AI -.->|"Returns Remediation Snippets"| EdgeFunctions
-```
-<div align="center"><em>Figure 1: Blastline System Architecture Flow</em></div>
+<p align="center">
+  <img src="https://i.imgur.com/D0IFoez.png" alt="Blastline System Architecture Flow" width="100%" />
+</p>
+<p align="center"><strong>Figure 1: Blastline System Architecture Flow</strong></p>
 
 ### Brief Flow-by-Flow
 1. **User Request:** The operator uses the UI to trigger an audit or remediation.
