@@ -1,9 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { verifyAuth, jsonResponse, validateInput, getCorsHeaders, getSecurityHeaders, sanitizeForLog } from "../_shared/security.ts";
 
 // ============================================================
 // SigV4 — same shape as list-aws-resources
@@ -313,11 +309,33 @@ async function execAction(a: Action, defaultRegion: string, creds: Creds): Promi
 // ============================================================
 // AI planner — translates a remediation snippet into Action[]
 // ============================================================
+
+/**
+ * Sanitize user input to prevent prompt injection in LLM calls
+ * Removes suspicious patterns and limits length
+ */
+function sanitizeLlmInput(input: string): string {
+  // Remove potential prompt injection patterns
+  const sanitized = input
+    .replace(/system:|assistant:|user:/gi, "") // Remove role injection attempts
+    .replace(/```[\s\S]*?```/g, (match) => match.slice(0, 500)) // Limit code block size
+    .replace(/\[INST\]|\[\/INST\]|<\|im_start\|>|<\|im_end\|>/g, "") // Remove instruction markers
+    .slice(0, 8000); // Hard limit on input length
+  
+  return sanitized;
+}
+
 async function planActions(snippet: string, finding: any): Promise<{ actions: Action[]; reason?: string; raw?: string }> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-    const system = `You are an AWS remediation planner. Convert a Terraform/CloudFormation/CLI snippet (or a natural-language fix) into a JSON plan of concrete AWS API calls that, when executed, will apply the security fix.
+  // Sanitize inputs to prevent prompt injection
+  const safeSnippet = sanitizeLlmInput(snippet);
+  const safeTitle = finding?.title ? sanitizeForLog(finding.title, 200) : "";
+  const safeCheckId = finding?.check_id ? sanitizeForLog(finding.check_id, 100) : "";
+  const safeArn = finding?.resource_arn ? sanitizeForLog(finding.resource_arn, 200) : "";
+
+  const system = `You are an AWS remediation planner. Convert a Terraform/CloudFormation/CLI snippet (or a natural-language fix) into a JSON plan of concrete AWS API calls that, when executed, will apply the security fix.
 
 Return STRICT JSON: {"actions":[{"id":"a1","description":"...","service":"iam|s3|ec2|rds|kms|logs|cloudtrail|lambda|secretsmanager|guardduty","api":"<AWS API name>","region":"us-east-1","params":{...}}]}
 
@@ -331,14 +349,15 @@ Rules:
 - Do NOT create destructive calls (DeleteUser, DeleteBucket, TerminateInstances) unless the snippet explicitly removes a resource.
 - ALWAYS try to produce at least one action. Only return empty actions if the snippet is truly nonsensical.
 - If the snippet is a natural-language fix (no code), still infer the most likely AWS API call from the finding title and resource ARN.
-- If you cannot safely translate, return {"actions":[],"reason":"<why>"}.`;
+- If you cannot safely translate, return {"actions":[],"reason":"<why>"}.
+- CRITICAL: You must only produce AWS API calls for the specific security fix requested. Do not add unrelated actions.`;
 
-  const user = `Finding: ${finding?.title || ""} (${finding?.check_id || ""})
-Service: ${finding?.service || ""} | Region: ${finding?.region || "us-east-1"} | ARN: ${finding?.resource_arn || "(none)"}
+  const user = `Finding: ${safeTitle} (${safeCheckId})
+Service: ${finding?.service || ""} | Region: ${finding?.region || "us-east-1"} | ARN: ${safeArn}
 
 Snippet:
 \`\`\`
-${snippet.slice(0, 8000)}
+${safeSnippet}
 \`\`\``;
 
   async function callModel(model: string) {
@@ -406,6 +425,11 @@ async function planVerification(actions: Action[], finding: any): Promise<CheckP
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
+  // Sanitize finding data
+  const safeTitle = finding?.title ? sanitizeForLog(finding.title, 200) : "";
+  const safeCheckId = finding?.check_id ? sanitizeForLog(finding.check_id, 100) : "";
+  const safeArn = finding?.resource_arn ? sanitizeForLog(finding.resource_arn, 200) : "";
+
   const system = `You are an AWS post-remediation verifier. Given a list of WRITE actions just executed, produce a list of READ-ONLY AWS API calls that prove the change landed.
 
 Return STRICT JSON: {"checks":[{"id":"v1","description":"...","service":"iam|s3|ec2|rds|kms|logs|cloudtrail|lambda|secretsmanager","api":"<Read API>","region":"...","params":{...},"expect":{"contains":"<substring that must appear in response>","not_contains":"<substring that must NOT appear>","status_ok":true}}]}
@@ -414,10 +438,11 @@ Rules:
 - Use ONLY read APIs: GetAccountPasswordPolicy, GetBucketPublicAccessBlock, GetBucketEncryption, GetBucketVersioning, DescribeSecurityGroups, DescribeDBInstances, GetKeyRotationStatus, DescribeLogGroups, GetTrailStatus, GetTrail, GetFunctionConfiguration, etc.
 - Match each WRITE action with a verifying READ. 1 check per write action.
 - "contains" should be a string from the AWS response that PROVES the fix (e.g. "BlockPublicAcls>true", "MinimumPasswordLength>14", "<KeyRotationEnabled>true").
-- Keep checks small (1-4 total).`;
+- Keep checks small (1-4 total).
+- CRITICAL: You must only produce READ-ONLY AWS API calls. No write operations.`;
 
-  const user = `Finding being fixed: ${finding?.title} (${finding?.check_id})
-Resource: ${finding?.resource_arn || "(none)"} | Region: ${finding?.region || "us-east-1"}
+  const user = `Finding being fixed: ${safeTitle} (${safeCheckId})
+Resource: ${safeArn} | Region: ${finding?.region || "us-east-1"}
 
 Write actions just executed:
 ${JSON.stringify(actions.map((a) => ({ service: a.service, api: a.api, params: a.params })), null, 2)}`;
@@ -476,65 +501,88 @@ async function runVerification(actions: Action[], finding: any, defaultRegion: s
 // Handler
 // ============================================================
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const origin = req.headers.get("origin");
+  const corsHeaders = getCorsHeaders(origin);
+  
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: { ...corsHeaders, ...getSecurityHeaders() } });
+  }
 
   try {
+    // Verify authentication
+    const auth = await verifyAuth(req);
+    if (!auth) {
+      return jsonResponse({ error: "unauthenticated" }, 401, origin);
+    }
+    const { user } = auth;
+
+    // Parse and validate input
+    const body = await req.json().catch(() => ({}));
+    const validation = validateInput(body, {
+      remediation_id: { type: "string", required: true },
+      dry_run: { type: "boolean", required: false },
+    });
+    
+    if (!validation.valid) {
+      return jsonResponse({ error: validation.error }, 400, origin);
+    }
+    
+    const { remediation_id, dry_run } = body;
+    
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const ANON = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const userClient = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: authHeader } } });
-    const { data: { user } } = await userClient.auth.getUser();
-    if (!user) return json({ error: "unauthenticated" }, 401);
-
-    const { remediation_id, dry_run } = await req.json();
-    if (!remediation_id) return json({ error: "remediation_id required" }, 400);
+    const admin = createClient(SUPABASE_URL, SERVICE);
 
     const admin = createClient(SUPABASE_URL, SERVICE);
 
     // Load remediation + finding + connection
     const { data: rem, error: remErr } = await admin
       .from("remediations").select("*").eq("id", remediation_id).eq("user_id", user.id).single();
-    if (remErr || !rem) return json({ error: "remediation not found" }, 404);
+    if (remErr || !rem) return jsonResponse({ error: "remediation not found" }, 404, origin);
 
     if (!dry_run && rem.lifecycle_state !== "approved") {
-      return json({ error: `Remediation must be approved before execution (current: ${rem.lifecycle_state})` }, 400);
+      return jsonResponse({ error: `Remediation must be approved before execution (current: ${rem.lifecycle_state})` }, 400, origin);
     }
 
     const { data: finding } = await admin.from("findings").select("*").eq("id", rem.finding_id).single();
-    if (!finding) return json({ error: "finding not found" }, 404);
+    if (!finding) return jsonResponse({ error: "finding not found" }, 404, origin);
 
     const { data: audit } = await admin.from("audits").select("connection_id").eq("id", finding.audit_id).single();
-    if (!audit?.connection_id) return json({ error: "no connection on audit" }, 400);
+    if (!audit?.connection_id) return jsonResponse({ error: "no connection on audit" }, 400, origin);
 
     const { data: conn } = await admin.from("aws_connections").select("*").eq("id", audit.connection_id).single();
-    if (!conn) return json({ error: "connection not found" }, 404);
-    if (!conn.access_key_id || !conn.secret_access_key) return json({ error: "connection has no access keys" }, 400);
+    if (!conn) return jsonResponse({ error: "connection not found" }, 404, origin);
+    if (!conn.access_key_id || !conn.secret_access_key) return jsonResponse({ error: "connection has no access keys" }, 400, origin);
 
     const creds: Creds = { ak: conn.access_key_id, sk: conn.secret_access_key };
     const region = finding.region || conn.default_region || "us-east-1";
 
     // 1) PLAN — ask AI to translate snippet to AWS API calls
     const snippet = rem.executed_script || rem.snippet || "";
-    if (!snippet.trim()) return json({ error: "remediation has no snippet to execute" }, 400);
+    if (!snippet.trim()) return jsonResponse({ error: "remediation has no snippet to execute" }, 400, origin);
 
     const planned = await planActions(snippet, finding);
     const actions = planned.actions;
     if (actions.length === 0) {
-      console.error("[apply-remediation] empty plan", { reason: planned.reason, snippet_preview: snippet.slice(0, 500), finding_title: finding?.title, check_id: finding?.check_id });
-      return json({
+      console.error("[apply-remediation] empty plan", { 
+        reason: planned.reason, 
+        snippet_preview: sanitizeForLog(snippet, 500),
+        finding_title: sanitizeForLog(finding?.title || "", 200),
+        check_id: sanitizeForLog(finding?.check_id || "", 100)
+      });
+      return jsonResponse({
         error: `AI could not produce a safe action plan: ${planned.reason || "snippet was too vague or contained no actionable AWS change"}. Edit the remediation snippet to include concrete resource names (bucket, role, security group ID, etc.) or apply manually via the AWS Console.`,
         ai_reason: planned.reason,
         ai_raw_preview: planned.raw?.slice(0, 400),
-      }, 422);
+      }, 422, origin);
     }
 
     // Attach console URLs upfront
     actions.forEach((a) => { a.console_url = consoleUrlFor(a, region); });
 
     if (dry_run) {
-      return json({ ok: true, dry_run: true, planned_actions: actions });
+      return jsonResponse({ ok: true, dry_run: true, planned_actions: actions }, 200, origin);
     }
 
     // 2) EXECUTE
@@ -725,7 +773,7 @@ AWS Response: ${awsResponse}
       }
     }
 
-    return json({
+    return jsonResponse({
       ok: allOk,
       lifecycle_state: lifecycle,
       execution_status: exec_status,
@@ -733,15 +781,9 @@ AWS Response: ${awsResponse}
       actions,
       results: update.aws_changes.results,
       verification,
-    });
+    }, 200, origin);
   } catch (e: any) {
-    console.error("apply-remediation error", e);
-    return json({ error: e?.message ?? String(e) }, 500);
+    console.error("apply-remediation error:", e.message);
+    return jsonResponse({ error: "Internal server error" }, 500, origin);
   }
 });
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status, headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
