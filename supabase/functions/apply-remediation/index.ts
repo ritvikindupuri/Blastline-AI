@@ -1,5 +1,17 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { verifyAuth, jsonResponse, validateInput, getCorsHeaders, getSecurityHeaders, sanitizeForLog } from "../_shared/security.ts";
+import { 
+  verifyAuth, 
+  jsonResponse, 
+  validateInput, 
+  getCorsHeaders, 
+  getSecurityHeaders, 
+  sanitizeForLog, 
+  enforceRateLimit,
+  enforceAwsReadOnly,
+  redactSecrets,
+} from "../_shared/security.ts";
+import { verifyRemediationOwnership } from "../_shared/authorization.ts";
+import { buildSafePrompt, callLlmWithValidation, LlmSchemas } from "../_shared/llm.ts";
 
 // ============================================================
 // SigV4 — same shape as list-aws-resources
@@ -310,30 +322,9 @@ async function execAction(a: Action, defaultRegion: string, creds: Creds): Promi
 // AI planner — translates a remediation snippet into Action[]
 // ============================================================
 
-/**
- * Sanitize user input to prevent prompt injection in LLM calls
- * Removes suspicious patterns and limits length
- */
-function sanitizeLlmInput(input: string): string {
-  // Remove potential prompt injection patterns
-  const sanitized = input
-    .replace(/system:|assistant:|user:/gi, "") // Remove role injection attempts
-    .replace(/```[\s\S]*?```/g, (match) => match.slice(0, 500)) // Limit code block size
-    .replace(/\[INST\]|\[\/INST\]|<\|im_start\|>|<\|im_end\|>/g, "") // Remove instruction markers
-    .slice(0, 8000); // Hard limit on input length
-  
-  return sanitized;
-}
-
 async function planActions(snippet: string, finding: any): Promise<{ actions: Action[]; reason?: string; raw?: string }> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
-
-  // Sanitize inputs to prevent prompt injection
-  const safeSnippet = sanitizeLlmInput(snippet);
-  const safeTitle = finding?.title ? sanitizeForLog(finding.title, 200) : "";
-  const safeCheckId = finding?.check_id ? sanitizeForLog(finding.check_id, 100) : "";
-  const safeArn = finding?.resource_arn ? sanitizeForLog(finding.resource_arn, 200) : "";
 
   const system = `You are an AWS remediation planner. Convert a Terraform/CloudFormation/CLI snippet (or a natural-language fix) into a JSON plan of concrete AWS API calls that, when executed, will apply the security fix.
 
@@ -352,52 +343,79 @@ Rules:
 - If you cannot safely translate, return {"actions":[],"reason":"<why>"}.
 - CRITICAL: You must only produce AWS API calls for the specific security fix requested. Do not add unrelated actions.`;
 
-  const user = `Finding: ${safeTitle} (${safeCheckId})
-Service: ${finding?.service || ""} | Region: ${finding?.region || "us-east-1"} | ARN: ${safeArn}
+  // Build safe prompt with untrusted data delimited
+  const prompt = buildSafePrompt({
+    systemInstructions: system,
+    untrustedInputs: [
+      { label: "REMEDIATION_SNIPPET", data: snippet },
+      { label: "FINDING_TITLE", data: finding?.title || "" },
+      { label: "RESOURCE_ARN", data: finding?.resource_arn || "" },
+    ],
+    trustedContext: `Finding Check ID: ${finding?.check_id || ""}
+Service: ${finding?.service || ""} | Region: ${finding?.region || "us-east-1"}`,
+    outputSchema: LlmSchemas.awsActionPlan,
+  });
 
-Snippet:
-\`\`\`
-${safeSnippet}
-\`\`\``;
+  // Call LLM with strict schema validation
+  const result = await callLlmWithValidation(
+    apiKey,
+    "google/gemini-2.5-flash",
+    prompt,
+    LlmSchemas.awsActionPlan
+  );
 
-  async function callModel(model: string) {
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "system", content: system }, { role: "user", content: user }],
-        response_format: { type: "json_object" },
-      }),
-    });
-    if (!r.ok) throw new Error(`AI planner failed (${model}): ${r.status} ${(await r.text()).slice(0, 300)}`);
-    const j = await r.json();
-    const content = j?.choices?.[0]?.message?.content || "{}";
-    let parsed: any = {};
-    try { parsed = JSON.parse(content); } catch { parsed = {}; }
-    const actions: Action[] = (Array.isArray(parsed?.actions) ? parsed.actions : [])
-      .filter((a: any) => a && a.service && a.api)
-      .slice(0, 8);
-    return { actions, reason: parsed?.reason as string | undefined, raw: content };
+  if (!result.success) {
+    console.error("[planActions] LLM validation failed:", result.error);
+    
+    // Retry with stronger model if validation failed
+    console.log("[planActions] retrying with gemini-2.5-pro");
+    const retryResult = await callLlmWithValidation(
+      apiKey,
+      "google/gemini-2.5-pro",
+      prompt,
+      LlmSchemas.awsActionPlan
+    );
+    
+    if (!retryResult.success) {
+      return { actions: [], reason: retryResult.error, raw: retryResult.raw };
+    }
+    
+    // Enforce AWS read-only for each action
+    for (const action of retryResult.data.actions) {
+      try {
+        enforceAwsReadOnly(action.api, "remediation");
+      } catch (e: any) {
+        console.error(`[planActions] Rejected disallowed AWS action: ${action.api}`);
+        return { 
+          actions: [], 
+          reason: `Security violation: AWS action "${action.api}" is not allowed in remediation context`,
+        };
+      }
+    }
+    
+    return { 
+      actions: retryResult.data.actions, 
+      reason: retryResult.data.reason,
+    };
   }
 
-  // First pass: fast model
-  let result = await callModel("google/gemini-2.5-flash");
-  console.log(`[planActions] flash → ${result.actions.length} actions${result.reason ? `, reason: ${result.reason}` : ""}`);
-
-  // Retry with a stronger model if empty
-  if (result.actions.length === 0) {
-    console.log(`[planActions] retrying with gemini-2.5-pro. snippet preview: ${snippet.slice(0, 300)}`);
+  // Enforce AWS read-only for each action
+  for (const action of result.data.actions) {
     try {
-      const retry = await callModel("google/gemini-2.5-pro");
-      console.log(`[planActions] pro → ${retry.actions.length} actions${retry.reason ? `, reason: ${retry.reason}` : ""}`);
-      if (retry.actions.length > 0) return retry;
-      result = retry; // keep richer reason
+      enforceAwsReadOnly(action.api, "remediation");
     } catch (e: any) {
-      console.error("[planActions] pro retry failed", e?.message);
+      console.error(`[planActions] Rejected disallowed AWS action: ${action.api}`);
+      return { 
+        actions: [], 
+        reason: `Security violation: AWS action "${action.api}" is not allowed in remediation context`,
+      };
     }
   }
-  return result;
+
+  return { 
+    actions: result.data.actions, 
+    reason: result.data.reason,
+  };
 }
 
 // ============================================================
@@ -713,6 +731,21 @@ AWS Response: ${awsResponse}
 
     await admin.from("remediations").update(update).eq("id", remediation_id);
 
+    // Audit log: record remediation execution
+    await admin.rpc("log_audit_action", {
+      p_user_id: user.id,
+      p_action: allOk ? "remediation_executed" : "remediation_execution_failed",
+      p_resource_type: "remediation",
+      p_resource_id: remediation_id,
+      p_details: {
+        finding_id: rem.finding_id,
+        aws_actions: actions.map(a => `${a.service}.${a.api}`).join(", "),
+        success_count: results.filter(r => r.ok).length,
+        total_count: results.length,
+      },
+      p_success: allOk,
+    });
+
     // Add a remediation_event for the audit trail
     await admin.from("remediation_events").insert({
       user_id: user.id,
@@ -783,7 +816,8 @@ AWS Response: ${awsResponse}
       verification,
     }, 200, origin);
   } catch (e: any) {
-    console.error("apply-remediation error:", e.message);
+    const errorMessage = redactSecrets(e.message || String(e));
+    console.error("apply-remediation error:", errorMessage);
     return jsonResponse({ error: "Internal server error" }, 500, origin);
   }
 });
