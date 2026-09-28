@@ -1,9 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders, getSecurityHeaders, sanitizeForLog } from "../_shared/security.ts";
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -14,16 +10,46 @@ let _seq = 0;
 let _currentAccountId: string | null = null;
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const origin = req.headers.get("origin");
+  const corsHeaders = getCorsHeaders(origin);
+  const securityHeaders = getSecurityHeaders();
+  
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: { ...corsHeaders, ...securityHeaders } });
+  }
+  
   try {
-    const { audit_id, user_id } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { audit_id, user_id } = body;
+    
+    // Note: This function is called internally by service role, not directly by users
+    // Input validation still applied for defense in depth
+    if (!audit_id || !user_id) {
+      return new Response(
+        JSON.stringify({ error: "audit_id and user_id required" }), 
+        { status: 400, headers: { ...corsHeaders, ...securityHeaders } }
+      );
+    }
+    
     runPipeline(audit_id, user_id).catch(async (e) => {
-      console.error("pipeline error", e);
-      await admin.from("audits").update({ status: "failed", error: String(e?.message ?? e), completed_at: new Date().toISOString() }).eq("id", audit_id);
+      console.error("pipeline error:", sanitizeForLog(e?.message || String(e)));
+      await admin.from("audits").update({ 
+        status: "failed", 
+        error: sanitizeForLog(String(e?.message ?? e), 500), 
+        completed_at: new Date().toISOString() 
+      }).eq("id", audit_id);
     });
-    return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    
+    return new Response(
+      JSON.stringify({ ok: true }), 
+      { headers: { ...corsHeaders, ...securityHeaders } }
+    );
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    console.error("run-agent-pipeline error:", sanitizeForLog(e?.message || String(e)));
+    return new Response(
+      JSON.stringify({ error: "Internal server error" }), 
+      { status: 500, headers: { ...corsHeaders, ...securityHeaders } }
+    );
   }
 });
 
@@ -292,12 +318,24 @@ function mkFinding(audit_id: string, user_id: string, service: string, check_id:
 }
 
 async function llm(model: string, messages: any[], json = false): Promise<string> {
+  // Sanitize message content to prevent prompt injection
+  const sanitizedMessages = messages.map(msg => ({
+    ...msg,
+    content: typeof msg.content === "string" 
+      ? sanitizeForLog(msg.content.replace(/system:|assistant:|user:/gi, ""), 10000)
+      : msg.content
+  }));
+  
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model, messages, ...(json ? { response_format: { type: "json_object" } } : {}) }),
+    body: JSON.stringify({ model, messages: sanitizedMessages, ...(json ? { response_format: { type: "json_object" } } : {}) }),
   });
-  if (!res.ok) throw new Error(`AI gateway ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error("AI gateway error:", res.status, sanitizeForLog(errorText, 500));
+    throw new Error(`AI gateway ${res.status}`);
+  }
   const j = await res.json();
   return j.choices?.[0]?.message?.content ?? "{}";
 }
