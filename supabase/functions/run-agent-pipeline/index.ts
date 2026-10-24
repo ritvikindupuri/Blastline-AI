@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { getCorsHeaders, getSecurityHeaders, sanitizeForLog } from "../_shared/security.ts";
+import { getCorsHeaders, getSecurityHeaders, sanitizeForLog, verifyServiceRoleKey } from "../_shared/security.ts";
 
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -19,17 +19,43 @@ Deno.serve(async (req) => {
   }
   
   try {
-    const body = await req.json().catch(() => ({}));
-    const { audit_id, user_id } = body;
-    
-    // Note: This function is called internally by service role, not directly by users
-    // Input validation still applied for defense in depth
-    if (!audit_id || !user_id) {
+    // SECURITY: This function must only be called with the service-role key
+    // Reject any request that does not provide the exact service-role key as bearer token
+    if (!verifyServiceRoleKey(req)) {
+      console.error("run-agent-pipeline: unauthorized access attempt");
       return new Response(
-        JSON.stringify({ error: "audit_id and user_id required" }), 
+        JSON.stringify({ error: "Forbidden" }), 
+        { status: 403, headers: { ...corsHeaders, ...securityHeaders } }
+      );
+    }
+    
+    const body = await req.json().catch(() => ({}));
+    const { audit_id } = body;
+    
+    // Validate audit_id is provided
+    if (!audit_id) {
+      return new Response(
+        JSON.stringify({ error: "audit_id required" }), 
         { status: 400, headers: { ...corsHeaders, ...securityHeaders } }
       );
     }
+    
+    // Fetch audit record to derive user_id (never trust client-supplied user_id)
+    const { data: audit, error: auditError } = await admin
+      .from("audits")
+      .select("user_id")
+      .eq("id", audit_id)
+      .single();
+    
+    if (auditError || !audit) {
+      console.error("run-agent-pipeline: audit not found:", sanitizeForLog(String(auditError?.message ?? "not found")));
+      return new Response(
+        JSON.stringify({ error: "audit not found" }), 
+        { status: 404, headers: { ...corsHeaders, ...securityHeaders } }
+      );
+    }
+    
+    const user_id = audit.user_id;
     
     runPipeline(audit_id, user_id).catch(async (e) => {
       console.error("pipeline error:", sanitizeForLog(e?.message || String(e)));

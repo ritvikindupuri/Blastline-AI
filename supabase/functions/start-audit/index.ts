@@ -66,12 +66,12 @@ Deno.serve(async (req) => {
     }).select().single();
     if (error) return jsonResponse({ error: error.message }, 500, origin);
 
-    // fire-and-forget pipeline
+    // fire-and-forget pipeline (user_id is derived server-side from audit record)
     const pipelineUrl = `${SUPABASE_URL}/functions/v1/run-agent-pipeline`;
     fetch(pipelineUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE}` },
-      body: JSON.stringify({ audit_id: audit.id, user_id: user.id }),
+      body: JSON.stringify({ audit_id: audit.id }),
     }).catch((e) => console.error("pipeline kickoff failed", redactSecrets(String(e))));
 
     // Audit log
