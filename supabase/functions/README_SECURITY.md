@@ -76,7 +76,7 @@ console.log("User input:", sanitizeForLog(userInput, 200));
 - `start-audit/index.ts` - JWT auth, input validation, CORS allowlist, security headers
 - `verify-aws-connection/index.ts` - JWT auth, input validation, CORS allowlist, security headers
 - `apply-remediation/index.ts` - JWT auth, input validation, CORS allowlist, security headers, prompt injection protection
-- `run-agent-pipeline/index.ts` - Security headers, CORS allowlist, prompt injection protection (internal service-to-service call)
+- `run-agent-pipeline/index.ts` - Service-role key authentication (constant-time compare), security headers, CORS allowlist, prompt injection protection (internal service-to-service call only)
 
 ### ⚠️ Needs Update
 The following functions should be updated to follow the same pattern:

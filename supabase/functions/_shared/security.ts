@@ -155,6 +155,47 @@ export function jsonResponse(
 }
 
 /**
+ * Constant-time string comparison to prevent timing attacks
+ * Returns true if strings match, false otherwise
+ */
+export function constantTimeEqual(a: string, b: string): boolean {
+  // Convert to bytes for constant-time comparison
+  const bufA = new TextEncoder().encode(a);
+  const bufB = new TextEncoder().encode(b);
+  
+  // If lengths differ, still compare to maintain constant time
+  // (compare against the longer length)
+  const len = Math.max(bufA.length, bufB.length);
+  let result = bufA.length === bufB.length ? 0 : 1;
+  
+  for (let i = 0; i < len; i++) {
+    // Use bitwise OR to accumulate differences without branching
+    result |= (bufA[i] || 0) ^ (bufB[i] || 0);
+  }
+  
+  return result === 0;
+}
+
+/**
+ * Verify service-role key from Authorization header
+ * Returns true if the bearer token matches the service-role key
+ */
+export function verifyServiceRoleKey(req: Request): boolean {
+  const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!SERVICE) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY not configured");
+  }
+  
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return false;
+  }
+  
+  const token = authHeader.substring(7); // Remove "Bearer " prefix
+  return constantTimeEqual(token, SERVICE);
+}
+
+/**
  * Sanitize string to prevent log injection
  * Removes control characters and limits length
  */
